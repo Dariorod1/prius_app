@@ -156,8 +156,9 @@ const Pagos = () => {
       // 2. Actualizar el pedido (cambiar estado si estaba pendiente y llega al 50%)
       let nuevoEstado = selectedPedido.estado;
       const porcentajePagado = (nuevoMontoPagado / parseFloat(selectedPedido.precio_total)) * 100;
+      const pasaAAutorizado = nuevoEstado === 'Pendiente' && porcentajePagado >= 50;
       
-      if (nuevoEstado === 'Pendiente' && porcentajePagado >= 50) {
+      if (pasaAAutorizado) {
         nuevoEstado = 'Autorizado';
       }
 
@@ -167,7 +168,16 @@ const Pagos = () => {
 
       if (updateError) throw updateError;
 
-      setMensaje({ tipo: 'success', texto: 'Pago registrado con éxito' });
+      // 3. Loguear el cambio a Autorizado para que aparezca en el timeline
+      if (pasaAAutorizado) {
+        await supabase.from('pedido_estado_log').insert([{
+          pedido_id: selectedPedido.id,
+          estado: 'Autorizado',
+          empleado_username: currentUser?.username || 'Desconocido'
+        }]);
+      }
+
+      setMensaje({ tipo: 'success', texto: pasaAAutorizado ? 'Pago registrado — ¡Pedido AUTORIZADO a corte!' : 'Pago registrado con éxito' });
       setSelectedPedido(null);
       // Refrescar resultados de búsqueda para mostrar los montos actualizados
       document.getElementById('form-busqueda').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));

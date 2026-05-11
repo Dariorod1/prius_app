@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Printer, X } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const ESTADOS = [
   'Pendiente', 'Autorizado', 'En Corte', 'Corte Finalizado',
@@ -66,83 +68,115 @@ const Listado = () => {
     filtroEstado      && `Estado: ${filtroEstado}`,
   ].filter(Boolean).join(' — ') || 'Todos los pedidos';
 
+  const generarPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+
+    // — Encabezado —
+    doc.setFillColor(15, 23, 42); // --bg-dark
+    doc.rect(0, 0, 297, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PRIUS', 148.5, 12, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184); // --text-muted
+    doc.text('Sistema de Gestión de Producción Textil', 148.5, 18, { align: 'center' });
+    doc.text(
+      `Generado el ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}  ·  ${resumenFiltros}`,
+      148.5, 23, { align: 'center' }
+    );
+
+    // — Tabla —
+    autoTable(doc, {
+      startY: 32,
+      head: [['#', 'Cliente', 'DNI', 'Institución', 'Prenda / Talle', 'Estado', 'Total', 'Pagado', 'Fecha']],
+      body: pedidos.map((p, i) => {
+        const total  = parseFloat(p.precio_total);
+        const pagado = parseFloat(p.monto_pagado);
+        const pct    = total > 0 ? Math.round((pagado / total) * 100) : 0;
+        return [
+          i + 1,
+          p.clientes?.nombre || '-',
+          p.clientes?.dni || '-',
+          p.instituciones?.nombre || '-',
+          `${p.tipo_prenda} / ${p.talle}${p.nombre_bordado ? ` (${p.nombre_bordado})` : ''}`,
+          p.estado,
+          `$${total.toFixed(2)}`,
+          `$${pagado.toFixed(2)} (${pct}%)`,
+          new Date(p.fecha_creacion).toLocaleDateString('es-AR'),
+        ];
+      }),
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+        textColor: [15, 23, 42],
+      },
+      headStyles: {
+        fillColor: [79, 70, 229], // --primary
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8,
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: {
+        0: { cellWidth: 8 },   // #
+        6: { halign: 'right' }, // Total
+        7: { halign: 'right' }, // Pagado
+      },
+      didParseCell: (data) => {
+        // Colorear la columna Estado según el estado
+        if (data.column.index === 5 && data.section === 'body') {
+          const estado = data.cell.raw;
+          const colorMap = {
+            'Pendiente':              [202, 138, 4],
+            'Autorizado':             [37, 99, 235],
+            'En Corte':               [124, 58, 237],
+            'Corte Finalizado':       [5, 150, 105],
+            'En Confección':          [234, 88, 12],
+            'Confección Finalizada':  [16, 185, 129],
+            'En Bordado':             [190, 24, 93],
+            'Bordado Finalizado':     [109, 40, 217],
+            'Entregado':              [5, 150, 105],
+          };
+          const color = colorMap[estado];
+          if (color) data.cell.styles.textColor = color;
+          data.cell.styles.fontStyle = 'bold';
+        }
+        // Colorear Pagado en rojo/verde según porcentaje
+        if (data.column.index === 7 && data.section === 'body') {
+          const texto = data.cell.raw;
+          const pct = parseInt(texto.match(/\((\d+)%\)/)?.[1] || '0');
+          data.cell.styles.textColor = pct >= 100 ? [5, 150, 105] : pct >= 50 ? [37, 99, 235] : [220, 38, 38];
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+
+    // — Pie de página —
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(
+        `Prius App · Página ${i} de ${pageCount} · Total de pedidos: ${pedidos.length}`,
+        148.5,
+        doc.internal.pageSize.height - 5,
+        { align: 'center' }
+      );
+    }
+
+    const fecha = new Date().toISOString().split('T')[0];
+    doc.save(`prius-listado-${fecha}.pdf`);
+  };
+
   return (
     <div>
-      {/* ============================================================
-          CAPA DE IMPRESIÓN — Solo visible al hacer window.print()
-          Estilos controlados vía @media print en index.css
-          ============================================================ */}
-      <div className="print-only">
-        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: '900', letterSpacing: '0.15em', margin: 0 }}>PRIUS</h1>
-          <p style={{ fontSize: '0.85rem', color: '#64748B', margin: '4px 0 0' }}>
-            Sistema de Gestión de Producción Textil
-          </p>
-          <p style={{ fontSize: '0.8rem', color: '#94A3B8', margin: '4px 0 0' }}>
-            Listado generado el{' '}
-            {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
-            {' — '}{resumenFiltros}
-          </p>
-        </div>
-        <hr style={{ borderColor: '#CBD5E1', marginBottom: '1rem' }} />
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-          <thead>
-            <tr style={{ background: '#F1F5F9', borderBottom: '2px solid #CBD5E1' }}>
-              {['#', 'Cliente', 'DNI', 'Institución', 'Prenda / Talle', 'Estado', 'Total', 'Pagado', 'Fecha'].map(col => (
-                <th key={col} style={{ padding: '0.5rem 0.6rem', textAlign: col === 'Total' || col === 'Pagado' ? 'right' : 'left', color: '#334155' }}>
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pedidos.map((p, idx) => {
-              const total  = parseFloat(p.precio_total);
-              const pagado = parseFloat(p.monto_pagado);
-              const pct    = total > 0 ? Math.round((pagado / total) * 100) : 0;
-              const colorPct = pct >= 100 ? '#059669' : pct >= 50 ? '#2563EB' : '#DC2626';
-              return (
-                <tr key={p.id} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#fff' : '#F8FAFC' }}>
-                  <td style={{ padding: '0.45rem 0.6rem', color: '#94A3B8' }}>{idx + 1}</td>
-                  <td style={{ padding: '0.45rem 0.6rem', fontWeight: '600', color: '#0F172A' }}>{p.clientes?.nombre}</td>
-                  <td style={{ padding: '0.45rem 0.6rem', color: '#64748B' }}>{p.clientes?.dni}</td>
-                  <td style={{ padding: '0.45rem 0.6rem', color: '#0F172A' }}>{p.instituciones?.nombre}</td>
-                  <td style={{ padding: '0.45rem 0.6rem', color: '#0F172A' }}>
-                    {p.tipo_prenda} / {p.talle}
-                    {p.nombre_bordado ? ` (${p.nombre_bordado})` : ''}
-                  </td>
-                  <td style={{ padding: '0.45rem 0.6rem' }}>
-                    <span style={{
-                      padding: '2px 6px', borderRadius: '3px', fontSize: '0.75rem', fontWeight: '600',
-                      border: `1px solid ${ESTADO_COLORS[p.estado] || '#94A3B8'}`,
-                      color: ESTADO_COLORS[p.estado] || '#64748B',
-                    }}>
-                      {p.estado}
-                    </span>
-                  </td>
-                  <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#0F172A' }}>${total.toFixed(2)}</td>
-                  <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', fontWeight: '700', color: colorPct }}>
-                    ${pagado.toFixed(2)} ({pct}%)
-                  </td>
-                  <td style={{ padding: '0.45rem 0.6rem', color: '#64748B' }}>
-                    {new Date(p.fecha_creacion).toLocaleDateString('es-AR')}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        <div style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: '#94A3B8', textAlign: 'right' }}>
-          Total de pedidos: <strong>{pedidos.length}</strong>
-        </div>
-      </div>
-
-      {/* ============================================================
-          VISTA DE PANTALLA — Oculta al imprimir
-          ============================================================ */}
-      <div className="no-print">
         <h1 style={{ marginBottom: '0.25rem' }}>Listado de Pedidos</h1>
         <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
           Filtrá por escuela o estado y exportá el resultado como PDF.
@@ -208,7 +242,7 @@ const Listado = () => {
                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                 opacity: pedidos.length === 0 ? 0.5 : 1
               }}
-              onClick={() => window.print()}
+              onClick={generarPDF}
               disabled={loading || pedidos.length === 0}
             >
               <Printer size={16} />
@@ -341,7 +375,7 @@ const Listado = () => {
                       <td style={{ padding: '0.75rem 1rem' }}>
                         <span style={{
                           padding: '3px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: '600',
-                          background: `${ESTADO_COLORS[p.estado]}20` || 'rgba(255,255,255,0.05)',
+                          background: ESTADO_COLORS[p.estado] ? (ESTADO_COLORS[p.estado] + '20') : 'rgba(255,255,255,0.05)',
                           color: ESTADO_COLORS[p.estado] || '#94A3B8'
                         }}>
                           {p.estado}
@@ -363,7 +397,6 @@ const Listado = () => {
             </table>
           </div>
         )}
-      </div>
     </div>
   );
 };

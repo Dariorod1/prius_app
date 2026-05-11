@@ -67,6 +67,10 @@ const Recepcion = () => {
       if (clienteError) throw new Error("Error al guardar cliente: " + clienteError.message);
 
       // 2. Crear el pedido
+      const precioTotal  = parseFloat(formData.precio_total) || 0;
+      const montoPagado  = parseFloat(formData.monto_pagado) || 0;
+      const alcanza50    = precioTotal > 0 && montoPagado >= precioTotal * 0.5;
+
       const nuevoPedido = {
         cliente_dni: formData.dni,
         institucion_id: formData.institucion_id || null,
@@ -74,16 +78,38 @@ const Recepcion = () => {
         talle: formData.talle,
         nombre_bordado: formData.nombre_bordado || null,
         observaciones: formData.observaciones || null,
-        precio_total: parseFloat(formData.precio_total) || 0,
-        monto_pagado: parseFloat(formData.monto_pagado) || 0,
-        estado: (parseFloat(formData.monto_pagado) > 0) ? 'Autorizado' : 'Pendiente' // Regla básica
+        precio_total: precioTotal,
+        monto_pagado: montoPagado,
+        estado: alcanza50 ? 'Autorizado' : 'Pendiente'
       };
 
-      const { error: pedidoError } = await supabase
+      const { data: pedidoData, error: pedidoError } = await supabase
         .from('pedidos')
-        .insert([nuevoPedido]);
+        .insert([nuevoPedido])
+        .select('id')
+        .single();
 
       if (pedidoError) throw new Error("Error al crear pedido: " + pedidoError.message);
+
+      // 3. Registrar el pago inicial en historial y loguear estado si corresponde
+      const user = JSON.parse(localStorage.getItem('priusUser'));
+      if (montoPagado > 0) {
+        await supabase.from('pagos_historial').insert([{
+          pedido_id: pedidoData.id,
+          monto: montoPagado,
+          metodo_pago: 'Efectivo',
+          empleado_username: user?.username || 'Recepción'
+        }]);
+      }
+
+      // Si nació directamente como Autorizado, registrarlo en el log de estados
+      if (alcanza50) {
+        await supabase.from('pedido_estado_log').insert([{
+          pedido_id: pedidoData.id,
+          estado: 'Autorizado',
+          empleado_username: user?.username || 'Recepción'
+        }]);
+      }
 
       setMensaje({ tipo: 'success', texto: '¡Pedido creado con éxito!' });
       
