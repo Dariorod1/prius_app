@@ -225,7 +225,7 @@ const Dashboard = () => {
                       </td>
                       <td data-label="Cliente" style={{ padding: '1rem' }}>
                         <div>
-                          <div style={{ fontWeight: '600', color: 'white' }}>{pedido.clientes?.nombre || 'Sin Nombre'}</div>
+                          <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>{pedido.clientes?.nombre || 'Sin Nombre'}</div>
                           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>DNI: {pedido.clientes?.dni}</div>
                         </div>
                       </td>

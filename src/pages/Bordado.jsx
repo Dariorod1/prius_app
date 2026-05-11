@@ -167,7 +167,7 @@ const Bordado = () => {
       background: '#1E293B', borderRadius: '12px', padding: '1.5rem',
       border: '2px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '1rem',
       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)',
-      cursor: !isMobile ? 'grab' : 'default',
+      cursor: !isMobile ? 'move' : 'default',
       transition: 'transform 0.2s ease, background 0.2s ease',
       touchAction: isMobile ? 'pan-y' : 'auto'
     }}>

@@ -152,7 +152,7 @@ const Confeccion = () => {
       background: 'var(--bg-sidebar)', borderRadius: '10px', padding: '1.25rem',
       border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.75rem',
       minHeight: '220px',
-      cursor: !isMobile ? 'grab' : 'default',
+      cursor: !isMobile ? 'move' : 'default',
       transition: 'transform 0.2s ease, background 0.2s ease',
       touchAction: isMobile ? 'pan-y' : 'auto'
     }}>
