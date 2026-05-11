@@ -252,7 +252,7 @@ const Dashboard = () => {
                       <td data-label="Pagos" className="full-width-mobile" style={{ padding: '1rem' }}>
                         <div style={{ width: '100%' }}>
                           <div style={{ fontSize: '0.9rem' }}>${pedido.monto_pagado} / ${pedido.precio_total}</div>
-                          <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', marginTop: '4px' }}>
+                          <div style={{ width: '100%', height: '6px', background: 'var(--track-color)', borderRadius: '3px', marginTop: '4px' }}>
                             <div style={{ width: `${Math.min(percentagePaid, 100)}%`, height: '100%', background: percentagePaid >= 100 ? 'var(--accent)' : 'var(--primary)', borderRadius: '3px' }}></div>
                           </div>
                         </div>
