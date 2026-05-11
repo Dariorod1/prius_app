@@ -274,7 +274,7 @@ const Pagos = () => {
           <span>Pago del total</span>
           <span style={{ color, fontWeight: 'bold' }}>{porcentaje.toFixed(0)}%</span>
         </div>
-        <div style={{ width: '100%', height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '8px', background: 'var(--track-color)', borderRadius: '4px', overflow: 'hidden' }}>
           <div style={{ width: `${Math.min(porcentaje, 100)}%`, height: '100%', background: color, borderRadius: '4px', transition: 'width 0.3s' }}></div>
         </div>
       </div>
@@ -311,7 +311,7 @@ const Pagos = () => {
               {estadoActual}
             </span>
           </div>
-          <div style={{ height: '4px', background: 'var(--border-color)', borderRadius: '2px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ height: '4px', background: 'var(--track-color)', borderRadius: '2px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ 
               position: 'absolute', left: 0, top: 0, bottom: 0, 
               width: `${((currentStepIndex + 1) / steps.length) * 100}%`, 
@@ -336,7 +336,7 @@ const Pagos = () => {
             <div key={step.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
               {/* Línea conectora */}
               {index !== 0 && (
-                <div style={{ position: 'absolute', left: '-50%', top: '10px', right: '50%', height: '2px', background: isCompleted ? 'var(--primary)' : 'var(--border-color)', zIndex: 0 }}></div>
+                <div style={{ position: 'absolute', left: '-50%', top: '10px', right: '50%', height: '2px', background: isCompleted ? 'var(--primary)' : 'var(--track-color)', zIndex: 0 }}></div>
               )}
               {/* Círculo */}
               <div style={{ 

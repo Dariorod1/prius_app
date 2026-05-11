@@ -26,6 +26,7 @@ const Bordado = () => {
   const [mensaje, setMensaje] = useState(null);
   const draggedIdRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
+  const skipRealtimeRef = useRef(false);
 
   useEffect(() => {
     if (mensaje) {
@@ -70,7 +71,8 @@ const Bordado = () => {
         },
         (payload) => {
           console.log('Realtime Bordado:', payload);
-          cargarPedidos(); // Recargar todo para mantener las columnas sincronizadas
+          if (skipRealtimeRef.current) { skipRealtimeRef.current = false; return; }
+          cargarPedidos();
         }
       )
       .subscribe();
@@ -80,9 +82,32 @@ const Bordado = () => {
     };
   }, [cargarPedidos]);
 
+  const moverPedidoLocal = (pedidoId, nuevoEstado) => {
+    const hoyStr = new Date().toDateString();
+    const mover = (prev) => prev.filter(p => p.id !== pedidoId);
+    const buscarPedido = () => {
+      for (const lista of [cola, enProgreso, terminadosHoy, terminadosAnteriores]) {
+        const found = lista.find(p => p.id === pedidoId);
+        if (found) return { ...found, estado: nuevoEstado };
+      }
+      return null;
+    };
+    const pedido = buscarPedido();
+    if (!pedido) return;
+    setCola(mover); setEnProgreso(mover); setTerminadosHoy(mover); setTerminadosAnteriores(mover);
+    if (ESTADOS_COLA.includes(nuevoEstado)) setCola(prev => [...prev, pedido]);
+    else if (ESTADOS_EN_PROGRESO.includes(nuevoEstado)) setEnProgreso(prev => [...prev, pedido]);
+    else if (ESTADOS_TERMINADO.includes(nuevoEstado)) {
+      if (new Date(pedido.fecha_creacion).toDateString() === hoyStr) setTerminadosHoy(prev => [...prev, pedido]);
+      else setTerminadosAnteriores(prev => [...prev, pedido]);
+    }
+  };
+
   const cambiarEstado = async (pedidoId, nuevoEstado) => {
     setActualizando(pedidoId);
     const user = JSON.parse(localStorage.getItem('priusUser'));
+    skipRealtimeRef.current = true;
+    moverPedidoLocal(pedidoId, nuevoEstado);
 
     const { error } = await supabase
       .from('pedidos')
@@ -91,6 +116,8 @@ const Bordado = () => {
 
     if (error) {
       setMensaje({ tipo: 'error', texto: 'Error al actualizar el estado.' });
+      skipRealtimeRef.current = false;
+      cargarPedidos();
     } else {
       await supabase.from('pedido_estado_log').insert([{
         pedido_id: pedidoId,
@@ -98,7 +125,6 @@ const Bordado = () => {
         empleado_username: user?.username || 'Desconocido'
       }]);
       setMensaje({ tipo: 'success', texto: `Pedido movido a "${nuevoEstado}"` });
-      cargarPedidos();
     }
     setActualizando(null);
   };

@@ -15,6 +15,7 @@
   --accent: #00C896;
   --accent-hover: #00A87E;
   --border-color: #383838;
+  --track-color: #383838;
   --topbar-bg: rgba(38, 38, 38, 0.90);
   --nav-hover-bg: rgba(0, 158, 227, 0.07);
 }
@@ -28,6 +29,7 @@
   --accent: #00A650;
   --accent-hover: #008040;
   --border-color: #DDE3EE;
+  --track-color: #C5CDD8;
   --topbar-bg: rgba(255, 255, 255, 0.92);
   --nav-hover-bg: rgba(0, 158, 227, 0.08);
   --primary-glow: rgba(0, 158, 227, 0.15);

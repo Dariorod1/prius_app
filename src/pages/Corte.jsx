@@ -26,6 +26,7 @@ const Corte = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const draggedIdRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
+  const skipRealtimeRef = useRef(false);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('priusUser'));
@@ -67,14 +68,40 @@ const Corte = () => {
   useEffect(() => {
     const channel = supabase
       .channel('corte-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => cargarPedidos())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+        if (skipRealtimeRef.current) { skipRealtimeRef.current = false; return; }
+        cargarPedidos();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [cargarPedidos]);
 
+  const moverPedidoLocal = (pedidoId, nuevoEstado) => {
+    const hoyStr = new Date().toDateString();
+    const mover = (prev) => prev.filter(p => p.id !== pedidoId);
+    const buscarPedido = () => {
+      for (const lista of [cola, enProgreso, terminadosHoy, terminadosAnteriores]) {
+        const found = lista.find(p => p.id === pedidoId);
+        if (found) return { ...found, estado: nuevoEstado };
+      }
+      return null;
+    };
+    const pedido = buscarPedido();
+    if (!pedido) return;
+    setCola(mover); setEnProgreso(mover); setTerminadosHoy(mover); setTerminadosAnteriores(mover);
+    if (ESTADOS_COLA.includes(nuevoEstado)) setCola(prev => [...prev, pedido]);
+    else if (ESTADOS_EN_PROGRESO.includes(nuevoEstado)) setEnProgreso(prev => [...prev, pedido]);
+    else if (ESTADOS_TERMINADO.includes(nuevoEstado)) {
+      if (new Date(pedido.fecha_creacion).toDateString() === hoyStr) setTerminadosHoy(prev => [...prev, pedido]);
+      else setTerminadosAnteriores(prev => [...prev, pedido]);
+    }
+  };
+
   const cambiarEstado = async (pedidoId, nuevoEstado) => {
     setActualizando(pedidoId);
     const user = JSON.parse(localStorage.getItem('priusUser'));
+    skipRealtimeRef.current = true;
+    moverPedidoLocal(pedidoId, nuevoEstado);
 
     const { error } = await supabase
       .from('pedidos')
@@ -83,15 +110,15 @@ const Corte = () => {
 
     if (error) {
       setMensaje({ tipo: 'error', texto: 'Error al actualizar el estado.' });
+      skipRealtimeRef.current = false;
+      cargarPedidos();
     } else {
-      // Registrar en el log de estados
       await supabase.from('pedido_estado_log').insert([{
         pedido_id: pedidoId,
         estado: nuevoEstado,
         empleado_username: user?.username || 'Desconocido'
       }]);
       setMensaje({ tipo: 'success', texto: `Pedido movido a "${nuevoEstado}"` });
-      cargarPedidos();
     }
     setActualizando(null);
   };
