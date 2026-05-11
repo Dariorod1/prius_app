@@ -145,13 +145,13 @@ const Escuelas = () => {
                         autoFocus
                       />
                     ) : (
-                      <strong style={{ color: 'white' }}>{escuela.nombre}</strong>
+                      <strong style={{ color: 'var(--text-main)' }}>{escuela.nombre}</strong>
                     )}
                   </td>
                   <td data-label="Acciones" style={{ padding: '1rem', textAlign: 'right', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                     {editandoId === escuela.id ? (
                       <>
-                        <button className="btn" style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.1)', color: 'white' }} onClick={() => setEditandoId(null)}>Cancelar</button>
+                        <button className="btn" style={{ padding: '0.5rem 1rem', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }} onClick={() => setEditandoId(null)}>Cancelar</button>
                         <button className="btn btn-primary" style={{ padding: '0.5rem 1rem' }} onClick={guardarEdicion}>✔ Guardar</button>
                       </>
                     ) : (

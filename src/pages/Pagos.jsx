@@ -260,7 +260,7 @@ const Pagos = () => {
           <span>Pago del total</span>
           <span style={{ color, fontWeight: 'bold' }}>{porcentaje.toFixed(0)}%</span>
         </div>
-        <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
           <div style={{ width: `${Math.min(porcentaje, 100)}%`, height: '100%', background: color, borderRadius: '4px', transition: 'width 0.3s' }}></div>
         </div>
       </div>
@@ -287,14 +287,14 @@ const Pagos = () => {
 
     if (isMobile) {
       return (
-        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--bg-dark)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Estado actual:</span>
             <span style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: 'bold', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
               {estadoActual}
             </span>
           </div>
-          <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ height: '4px', background: 'var(--border-color)', borderRadius: '2px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ 
               position: 'absolute', left: 0, top: 0, bottom: 0, 
               width: `${((currentStepIndex + 1) / steps.length) * 100}%`, 
@@ -311,7 +311,7 @@ const Pagos = () => {
     }
 
     return (
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
         {steps.map((step, index) => {
           const isCompleted = index <= currentStepIndex;
           const isCurrent = index === currentStepIndex;
@@ -319,16 +319,16 @@ const Pagos = () => {
             <div key={step.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
               {/* Línea conectora */}
               {index !== 0 && (
-                <div style={{ position: 'absolute', left: '-50%', top: '10px', right: '50%', height: '2px', background: isCompleted ? 'var(--primary)' : 'rgba(255,255,255,0.1)', zIndex: 0 }}></div>
+                <div style={{ position: 'absolute', left: '-50%', top: '10px', right: '50%', height: '2px', background: isCompleted ? 'var(--primary)' : 'var(--border-color)', zIndex: 0 }}></div>
               )}
               {/* Círculo */}
               <div style={{ 
                 width: '20px', height: '20px', borderRadius: '50%', zIndex: 1,
                 background: isCurrent ? 'var(--accent)' : (isCompleted ? 'var(--primary)' : 'var(--bg-sidebar)'),
-                border: `2px solid ${isCompleted ? (isCurrent ? 'var(--accent)' : 'var(--primary)') : 'rgba(255,255,255,0.2)'}`,
+                border: `2px solid ${isCompleted ? (isCurrent ? 'var(--accent)' : 'var(--primary)') : 'var(--border-color)'}`,
                 marginBottom: '4px'
               }}></div>
-              <span style={{ fontSize: '0.7rem', color: isCurrent ? 'white' : 'var(--text-muted)', fontWeight: isCurrent ? 'bold' : 'normal', textAlign: 'center' }}>
+              <span style={{ fontSize: '0.7rem', color: isCurrent ? 'var(--text-main)' : 'var(--text-muted)', fontWeight: isCurrent ? 'bold' : 'normal', textAlign: 'center' }}>
                 {step.id}
               </span>
             </div>
@@ -406,14 +406,14 @@ const Pagos = () => {
                     {/* Encabezado: Info del cliente y botón de historial */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                       <div style={{ flex: 1 }}>
-                        <h4 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>{pedido.clientes?.nombre} <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>({pedido.clientes?.dni})</span></h4>
+                        <h4 style={{ color: 'var(--text-main)', fontSize: '1.1rem', marginBottom: '4px' }}>{pedido.clientes?.nombre} <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>({pedido.clientes?.dni})</span></h4>
                         <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                           {pedido.instituciones?.nombre} • {pedido.tipo_prenda} ({pedido.talle})
                         </div>
                       </div>
                       <button 
                         onClick={() => toggleCard(pedido.id)}
-                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', padding: '0.5rem 0.75rem', flexShrink: 0 }}
+                        style={{ background: 'var(--bg-dark)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', padding: '0.5rem 0.75rem', flexShrink: 0 }}
                       >
                         {isExpanded ? <><ChevronUp size={18} /> <span className="hide-on-mobile">Ocultar Historial</span></> : <><ChevronDown size={18} /> <span className="hide-on-mobile">Ver Historial</span></>}
                       </button>
@@ -438,7 +438,7 @@ const Pagos = () => {
                         width: '100%', display: 'flex', flexDirection: isMobile ? 'column' : 'row', 
                         alignItems: isMobile ? 'stretch' : 'center', 
                         justifyContent: 'space-between', gap: '1.25rem', marginTop: '0.5rem',
-                        borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.25rem'
+                        borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem'
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>

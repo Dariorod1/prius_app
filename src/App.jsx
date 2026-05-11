@@ -166,7 +166,7 @@ const Dashboard = () => {
         <div style={{ display: 'flex', alignItems: 'flex-end' }}>
           <button 
             className="btn" 
-            style={{ backgroundColor: 'var(--border-color)', color: 'white' }}
+            style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}
             onClick={() => { setFiltroInstitucion(''); setFiltroInstitucionInput(''); setFiltroEstado(''); setFiltroTexto(''); }}
           >
             Limpiar

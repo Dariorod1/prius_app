@@ -103,19 +103,19 @@ const Corte = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h4 style={{ color: 'white', margin: 0, fontSize: '1rem' }}>{pedido.clientes?.nombre}</h4>
+          <h4 style={{ color: 'var(--text-main)', margin: 0, fontSize: '1rem' }}>{pedido.clientes?.nombre}</h4>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>DNI: {pedido.clientes?.dni}</span>
         </div>
         <Scissors size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
       </div>
 
       {/* Info prenda (crece para igualar la altura) */}
-      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '6px', padding: '0.75rem', fontSize: '0.9rem', flex: 1 }}>
+      <div style={{ background: 'var(--bg-dark)', borderRadius: '6px', padding: '0.75rem', fontSize: '0.9rem', flex: 1 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1.5rem' }}>
-          <span><span style={{ color: 'var(--text-muted)' }}>Prenda:</span> <strong style={{ color: 'white' }}>{pedido.tipo_prenda}</strong></span>
+          <span><span style={{ color: 'var(--text-muted)' }}>Prenda:</span> <strong style={{ color: 'var(--text-main)' }}>{pedido.tipo_prenda}</strong></span>
           <span><span style={{ color: 'var(--text-muted)' }}>Talle:</span> <strong style={{ color: 'var(--accent)' }}>{pedido.talle}</strong></span>
           {pedido.nombre_bordado && (
-            <span><span style={{ color: 'var(--text-muted)' }}>Bordado:</span> <strong style={{ color: 'white' }}>{pedido.nombre_bordado}</strong></span>
+            <span><span style={{ color: 'var(--text-muted)' }}>Bordado:</span> <strong style={{ color: 'var(--text-main)' }}>{pedido.nombre_bordado}</strong></span>
           )}
         </div>
         {pedido.observaciones && (
@@ -214,7 +214,7 @@ const Corte = () => {
         </div>
         <button
           onClick={cargarPedidos}
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.6rem 1rem', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.6rem 1rem', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
           <RefreshCw size={16} /> Actualizar
         </button>
@@ -275,7 +275,7 @@ const Corte = () => {
                 <div key={col.titulo} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                   <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: col.color, flexShrink: 0 }}></div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1rem', color: 'white' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main)' }}>
                       {col.titulo}
                       <span style={{ marginLeft: '0.5rem', background: col.color + '30', color: col.color, padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem' }}>
                         {col.pedidos.length}

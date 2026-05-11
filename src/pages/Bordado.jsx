@@ -272,7 +272,7 @@ const Bordado = () => {
               {columnas.map(col => (
                 <div key={col.titulo} style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
                   <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: col.color, flexShrink: 0 }}></div>
-                  <h3 style={{ margin: 0, fontSize: '1.5rem', color: 'white' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-main)' }}>
                     {col.titulo}
                     <span style={{ marginLeft: '1rem', background: col.color + '30', color: col.color, padding: '4px 12px', borderRadius: '14px', fontSize: '1.1rem' }}>
                       {col.pedidos.length}
