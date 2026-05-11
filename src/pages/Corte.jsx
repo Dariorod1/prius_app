@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { Scissors, User, Clock, CheckCircle, PlayCircle, RefreshCw } from 'lucide-react';
+import { Scissors, User, Clock, CheckCircle, PlayCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const ESTADOS_COLA = ['Autorizado'];
 const ESTADOS_EN_PROGRESO = ['En Corte'];
@@ -119,8 +119,8 @@ const Corte = () => {
           )}
         </div>
         {pedido.observaciones && (
-          <div style={{ marginTop: '0.5rem', color: '#FACC15', fontSize: '0.85rem' }}>
-            ⚠ {pedido.observaciones}
+          <div style={{ marginTop: '0.5rem', color: '#FACC15', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <AlertTriangle size={14} style={{ flexShrink: 0 }} /> {pedido.observaciones}
           </div>
         )}
       </div>

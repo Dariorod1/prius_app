@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { Sparkles, User, Clock, CheckCircle, PlayCircle, RefreshCw } from 'lucide-react';
+import { Sparkles, User, Clock, CheckCircle, PlayCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const ESTADOS_COLA = ['Confección Finalizada'];
 const ESTADOS_EN_PROGRESO = ['En Bordado'];
@@ -131,8 +131,8 @@ const Bordado = () => {
           )}
         </div>
         {pedido.observaciones && (
-          <div style={{ marginTop: '1rem', color: '#F87171', fontSize: '1.1rem', fontWeight: 'bold', borderTop: '1px dashed rgba(248, 113, 113, 0.3)', paddingTop: '0.75rem' }}>
-            ⚠ {pedido.observaciones}
+          <div style={{ marginTop: '1rem', color: '#F87171', fontSize: '1.1rem', fontWeight: 'bold', borderTop: '1px dashed rgba(248, 113, 113, 0.3)', paddingTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertTriangle size={18} style={{ flexShrink: 0 }} /> {pedido.observaciones}
           </div>
         )}
       </div>

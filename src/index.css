@@ -1,15 +1,17 @@
 :root {
-  --primary: #4F46E5; /* Indigo */
-  --primary-hover: #4338CA;
+  --primary: #5B4FE8;
+  --primary-hover: #4A3DD4;
+  --primary-glow: rgba(91, 79, 232, 0.3);
   --bg-dark: #0F172A;
-  --bg-sidebar: #1E293B;
-  --text-main: #F8FAFC;
-  --text-muted: #94A3B8;
-  --accent: #10B981; /* Emerald */
-  --accent-hover: #059669;
+  --bg-sidebar: #161E2E;
+  --text-main: #F1F5F9;
+  --text-muted: #8899B4;
+  --accent: #00C896;
+  --accent-hover: #00A87E;
   --danger: #EF4444;
-  --border-color: #334155;
+  --border-color: #263046;
   --sidebar-width: 260px;
+  --mono-font: 'Space Mono', monospace;
 }
 
 * {
@@ -19,7 +21,7 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'DM Sans', system-ui, Helvetica, Arial, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
   min-height: 100vh;
@@ -55,9 +57,10 @@ body {
 
 .sidebar-header h2 {
   color: var(--primary);
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  font-size: 1.5rem;
+  font-family: var(--mono-font);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-size: 1rem;
 }
 
 .close-sidebar-btn {
@@ -77,18 +80,19 @@ body {
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 1rem 1.5rem; /* Botones más grandes para dedos (touch target) */
+  padding: 1rem 1.5rem;
   color: var(--text-muted);
   text-decoration: none;
   transition: all 0.2s;
   gap: 12px;
   font-weight: 500;
+  border-left: 3px solid transparent;
 }
 
 .nav-item:hover, .nav-item.active {
-  background-color: rgba(79, 70, 229, 0.1);
+  background-color: rgba(91, 79, 232, 0.08);
   color: var(--primary);
-  border-right: 3px solid var(--primary);
+  border-left: 3px solid var(--primary);
 }
 
 .nav-icon {
@@ -106,13 +110,18 @@ body {
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   height: 70px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  background-color: var(--bg-sidebar);
+  background: rgba(22, 30, 46, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .menu-toggle-btn {
@@ -295,7 +304,11 @@ textarea.form-control {
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0.015em;
 }
 
 .btn-primary {
@@ -305,6 +318,8 @@ textarea.form-control {
 
 .btn-primary:hover:not(:disabled) {
   background-color: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px var(--primary-glow);
 }
 
 .btn:disabled {

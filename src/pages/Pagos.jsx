@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Search, DollarSign, Clock, User, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, DollarSign, Clock, User, CreditCard, ChevronDown, ChevronUp, PackageCheck, AlertTriangle } from 'lucide-react';
 
 const Pagos = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -479,10 +479,11 @@ const Pagos = () => {
                               style={{ 
                                 background: 'var(--accent)', color: 'white', 
                                 width: '100%', fontWeight: 'bold', border: 'none',
-                                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)'
+                                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
                               }}
                             >
-                              📦 Entregar Pedido
+                              <PackageCheck size={16} /> Entregar Pedido
                             </button>
                           )}
 
@@ -493,10 +494,11 @@ const Pagos = () => {
                               style={{ 
                                 background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', 
                                 border: '1px solid var(--danger)', borderRadius: '6px', padding: '0.75rem 1rem', 
-                                fontSize: '0.85rem', cursor: 'pointer', fontWeight: 'bold', width: '100%'
+                                fontSize: '0.85rem', cursor: 'pointer', fontWeight: 'bold', width: '100%',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
                               }}
                             >
-                              ⚠ Forzar Autorización Excepcional
+                              <AlertTriangle size={16} /> Forzar Autorización Excepcional
                             </button>
                           )}
                         </div>
@@ -519,7 +521,7 @@ const Pagos = () => {
                               }}>
                                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                   <span style={{ fontWeight: 'bold', color: esExcepcion ? 'var(--danger)' : 'var(--accent)' }}>
-                                    {esExcepcion ? '⚠ EXCEPCIÓN' : `+ $${pago.monto}`}
+                                    {esExcepcion ? <><AlertTriangle size={12} style={{ verticalAlign: 'middle' }} /> EXCEPCIÓN</> : `+ $${pago.monto}`}
                                   </span>
                                   {!esExcepcion && (
                                     <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -593,7 +595,7 @@ const Pagos = () => {
                     <div key={pago.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: esExcepcion ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-sidebar)', padding: '1rem', borderRadius: '6px', border: esExcepcion ? '1px solid rgba(239, 68, 68, 0.3)' : 'none' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold', color: esExcepcion ? 'var(--danger)' : 'var(--accent)' }}>
-                          {esExcepcion ? '⚠ AUTORIZACIÓN MANUAL (SIN PAGO)' : <><DollarSign size={16} /> ${pago.monto}</>}
+                          {esExcepcion ? <><AlertTriangle size={16} style={{ verticalAlign: 'middle' }} /> AUTORIZACIÓN MANUAL (SIN PAGO)</> : <><DollarSign size={16} /> ${pago.monto}</>}
                         </div>
                         {!esExcepcion && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -662,7 +664,7 @@ const Pagos = () => {
             maxWidth: '450px', width: '100%', border: '1px solid var(--danger)', textAlign: 'center',
             boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.25)'
           }}>
-            <h2 style={{ color: 'var(--danger)', marginBottom: '1rem' }}>⚠ Advertencia de Seguridad</h2>
+            <h2 style={{ color: 'var(--danger)', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><AlertTriangle size={22} /> Advertencia de Seguridad</h2>
             <p style={{ color: 'var(--text-main)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
               Estás a punto de saltarte la barrera financiera del 50%. El pedido pasará a la mesa de corte a pesar de no haber cumplido con el pago estipulado.
             </p>

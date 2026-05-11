@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { CheckCircle, XCircle } from 'lucide-react';
 
 const Recepcion = () => {
   const [instituciones, setInstituciones] = useState([]);
@@ -170,7 +171,7 @@ const Recepcion = () => {
           alignItems: 'center',
           gap: '10px'
         }}>
-          {mensaje.tipo === 'success' ? '✅ ' : '❌ '} {mensaje.texto}
+          {mensaje.tipo === 'success' ? <CheckCircle size={18} style={{ flexShrink: 0 }} /> : <XCircle size={18} style={{ flexShrink: 0 }} />} {mensaje.texto}
         </div>
       )}
 

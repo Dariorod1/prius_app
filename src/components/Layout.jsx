@@ -39,7 +39,7 @@ const Layout = ({ user, onLogout }) => {
           <div style={{
             display: 'flex', alignItems: 'center', gap: '0.75rem',
             padding: '0.75rem 1rem',
-            background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+            background: 'linear-gradient(135deg, #5B4FE8, #7C3AED)',
             color: 'white', fontSize: '0.85rem', flexShrink: 0,
           }}>
             <Share2 size={18} style={{ flexShrink: 0 }} />

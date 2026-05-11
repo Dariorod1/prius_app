@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import { User } from 'lucide-react';
 import Layout from './components/Layout';
 
 // Componente Dashboard modificado para mostrar Pedidos con el esquema relacional en español y Filtros
@@ -273,7 +274,7 @@ const Dashboard = () => {
                                     <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color, textAlign: 'center', lineHeight: 1.2, marginBottom: '4px' }}>{log.estado}</span>
                                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>{new Date(log.fecha).toLocaleDateString()}</span>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center' }}>{new Date(log.fecha).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                                    {log.empleado_username !== '-' && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '2px' }}>👤 {log.empleado_username}</span>}
+                                    {log.empleado_username !== '-' && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '2px' }}><User size={10} />{log.empleado_username}</span>}
                                   </div>
                                   {!isLast && <div style={{ width: '40px', height: '2px', background: `linear-gradient(to right, ${color}, ${ESTADO_COLORS[logs[index+1]?.estado] || '#94A3B8'})`, marginTop: '6px', flexShrink: 0 }}></div>}
                                 </div>

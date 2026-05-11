@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, Pen } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -297,7 +297,7 @@ const Listado = () => {
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.instituciones?.nombre}</div>
                   <div style={{ fontSize: '0.9rem' }}>{p.tipo_prenda} — Talle: {p.talle}</div>
                   {p.nombre_bordado && (
-                    <div style={{ fontSize: '0.85rem', color: 'var(--accent)' }}>✎ {p.nombre_bordado}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}><Pen size={12} /> {p.nombre_bordado}</div>
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
@@ -369,7 +369,7 @@ const Listado = () => {
                       <td style={{ padding: '0.75rem 1rem', fontSize: '0.9rem' }}>
                         {p.tipo_prenda} / {p.talle}
                         {p.nombre_bordado && (
-                          <div style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>✎ {p.nombre_bordado}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}><Pen size={11} /> {p.nombre_bordado}</div>
                         )}
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
