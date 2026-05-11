@@ -108,25 +108,43 @@ const Corte = () => {
     const handleTouchStart = (e) => {
       touchStartX.current = e.touches[0].clientX;
       touchDeltaX.current = 0;
+      if (cardRef.current) cardRef.current.style.transition = 'none';
     };
     const handleTouchMove = (e) => {
       const delta = e.touches[0].clientX - touchStartX.current;
       touchDeltaX.current = delta;
       if (cardRef.current) {
-        const clamped = Math.max(-120, Math.min(120, delta));
-        cardRef.current.style.transform = 'translateX(' + clamped + 'px)';
-        cardRef.current.style.background = delta > swipeThreshold ? 'rgba(16, 185, 129, 0.15)' : delta < -swipeThreshold ? 'rgba(251, 146, 60, 0.15)' : '';
+        const clamped = Math.max(-150, Math.min(150, delta));
+        cardRef.current.style.transform = 'translateX(' + clamped + 'px) rotate(' + (clamped * 0.04) + 'deg)';
+        if (delta > swipeThreshold) {
+          cardRef.current.style.background = 'rgba(16, 185, 129, 0.25)';
+          cardRef.current.style.borderColor = '#10B981';
+        } else if (delta < -swipeThreshold) {
+          cardRef.current.style.background = 'rgba(251, 146, 60, 0.25)';
+          cardRef.current.style.borderColor = '#FB923C';
+        } else {
+          cardRef.current.style.background = '';
+          cardRef.current.style.borderColor = '';
+        }
       }
     };
     const handleTouchEnd = () => {
+      const delta = touchDeltaX.current;
       if (cardRef.current) {
-        cardRef.current.style.transform = '';
-        cardRef.current.style.background = '';
-      }
-      if (touchDeltaX.current > swipeThreshold && forwardAction) {
-        cambiarEstado(pedido.id, forwardAction.nextEstado);
-      } else if (touchDeltaX.current < -swipeThreshold && backAction) {
-        cambiarEstado(pedido.id, backAction.nextEstado);
+        cardRef.current.style.transition = 'transform 0.3s ease, opacity 0.3s ease, background 0.3s ease';
+        if (delta > swipeThreshold && forwardAction) {
+          cardRef.current.style.transform = 'translateX(110%) rotate(4deg)';
+          cardRef.current.style.opacity = '0';
+          setTimeout(() => cambiarEstado(pedido.id, forwardAction.nextEstado), 300);
+        } else if (delta < -swipeThreshold && backAction) {
+          cardRef.current.style.transform = 'translateX(-110%) rotate(-4deg)';
+          cardRef.current.style.opacity = '0';
+          setTimeout(() => cambiarEstado(pedido.id, backAction.nextEstado), 300);
+        } else {
+          cardRef.current.style.transform = '';
+          cardRef.current.style.background = '';
+          cardRef.current.style.borderColor = '';
+        }
       }
     };
 
@@ -305,7 +323,7 @@ const Corte = () => {
               </div>
 
               {/* Columna activa */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}>
                 {columnas[activeTab].pedidos.length === 0 ? (
                   <div style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
                     Sin pedidos en esta etapa
