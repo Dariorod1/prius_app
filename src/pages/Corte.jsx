@@ -96,16 +96,55 @@ const Corte = () => {
     setActualizando(null);
   };
 
-  const CardPedido = ({ pedido, acciones }) => (
-    <div
+  const CardPedido = ({ pedido, acciones }) => {
+    const touchStartX = useRef(0);
+    const touchDeltaX = useRef(0);
+    const cardRef = useRef(null);
+    const swipeThreshold = 80;
+
+    const forwardAction = acciones.find(a => !a.outlined);
+    const backAction = acciones.find(a => a.outlined);
+
+    const handleTouchStart = (e) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchDeltaX.current = 0;
+    };
+    const handleTouchMove = (e) => {
+      const delta = e.touches[0].clientX - touchStartX.current;
+      touchDeltaX.current = delta;
+      if (cardRef.current) {
+        const clamped = Math.max(-120, Math.min(120, delta));
+        cardRef.current.style.transform = 'translateX(' + clamped + 'px)';
+        cardRef.current.style.background = delta > swipeThreshold ? 'rgba(16, 185, 129, 0.15)' : delta < -swipeThreshold ? 'rgba(251, 146, 60, 0.15)' : '';
+      }
+    };
+    const handleTouchEnd = () => {
+      if (cardRef.current) {
+        cardRef.current.style.transform = '';
+        cardRef.current.style.background = '';
+      }
+      if (touchDeltaX.current > swipeThreshold && forwardAction) {
+        cambiarEstado(pedido.id, forwardAction.nextEstado);
+      } else if (touchDeltaX.current < -swipeThreshold && backAction) {
+        cambiarEstado(pedido.id, backAction.nextEstado);
+      }
+    };
+
+    return (<div
+      ref={cardRef}
       draggable={!isMobile}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; draggedIdRef.current = pedido.id; }}
       onDragEnd={() => { draggedIdRef.current = null; setDragOverCol(null); }}
+      onTouchStart={isMobile ? handleTouchStart : undefined}
+      onTouchMove={isMobile ? handleTouchMove : undefined}
+      onTouchEnd={isMobile ? handleTouchEnd : undefined}
       style={{
       background: 'var(--bg-sidebar)', borderRadius: '10px', padding: '1.25rem',
       border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.75rem',
       minHeight: '220px',
-      cursor: !isMobile ? 'grab' : 'default'
+      cursor: !isMobile ? 'grab' : 'default',
+      transition: 'transform 0.2s ease, background 0.2s ease',
+      touchAction: isMobile ? 'pan-y' : 'auto'
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -167,7 +206,8 @@ const Corte = () => {
         ))}
       </div>
     </div>
-  );
+    );
+  };
 
   const columnas = [
     {
