@@ -7,6 +7,7 @@ const Recepcion = () => {
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [confirmModal, setConfirmModal] = useState(false);
+  const [clienteExistente, setClienteExistente] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -41,6 +42,33 @@ const Recepcion = () => {
       return () => clearTimeout(timer);
     }
   }, [mensaje]);
+
+  // Buscar cliente por DNI cuando tiene 7+ dígitos
+  useEffect(() => {
+    const dni = formData.dni.trim();
+    if (dni.length < 7) {
+      setClienteExistente(false);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      const { data } = await supabase
+        .from('clientes')
+        .select('nombre, telefono')
+        .eq('dni', dni)
+        .single();
+      if (data) {
+        setFormData(prev => ({
+          ...prev,
+          nombre_cliente: data.nombre || '',
+          telefono: data.telefono || ''
+        }));
+        setClienteExistente(true);
+      } else {
+        setClienteExistente(false);
+      }
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [formData.dni]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -184,6 +212,11 @@ const Recepcion = () => {
             <div className="form-group">
               <label>DNI</label>
               <input type="text" name="dni" required className="form-control" value={formData.dni} onChange={handleChange} placeholder="Ej: 35123456" />
+              {clienteExistente && (
+                <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--accent)', background: 'rgba(0, 200, 150, 0.1)', padding: '4px 10px', borderRadius: '6px', width: 'fit-content' }}>
+                  <CheckCircle size={14} /> Cliente ya dado de alta
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label>Nombre Completo</label>
