@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Scissors, User, Clock, CheckCircle, PlayCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 
@@ -24,6 +24,8 @@ const Corte = () => {
   const [actualizando, setActualizando] = useState(null);
   const [mensaje, setMensaje] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const draggedIdRef = useRef(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('priusUser'));
@@ -95,10 +97,15 @@ const Corte = () => {
   };
 
   const CardPedido = ({ pedido, acciones }) => (
-    <div style={{
+    <div
+      draggable={!isMobile}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; draggedIdRef.current = pedido.id; }}
+      onDragEnd={() => { draggedIdRef.current = null; setDragOverCol(null); }}
+      style={{
       background: 'var(--bg-sidebar)', borderRadius: '10px', padding: '1.25rem',
       border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.75rem',
-      minHeight: '220px'
+      minHeight: '220px',
+      cursor: !isMobile ? 'grab' : 'default'
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -167,6 +174,7 @@ const Corte = () => {
       titulo: 'Cola de Corte',
       subtitle: 'Pedidos autorizados esperando ser cortados',
       color: '#3B82F6',
+      dropEstado: 'Autorizado',
       pedidos: cola,
       acciones: [
         { label: 'Iniciar Corte', nextEstado: 'En Corte', color: '#7C3AED', icon: <PlayCircle size={16} /> }
@@ -176,6 +184,7 @@ const Corte = () => {
       titulo: 'En Corte',
       subtitle: 'Prendas que están siendo cortadas ahora',
       color: '#7C3AED',
+      dropEstado: 'En Corte',
       pedidos: enProgreso,
       acciones: [
         { label: 'Finalizar Corte', nextEstado: 'Corte Finalizado', color: '#10B981', icon: <CheckCircle size={16} /> },
@@ -186,6 +195,7 @@ const Corte = () => {
       titulo: 'Corte Finalizado',
       subtitle: 'Finalizados hoy',
       color: '#10B981',
+      dropEstado: 'Corte Finalizado',
       pedidos: terminadosHoy,
       acciones: [
         { label: 'Reabrir Corte', nextEstado: 'En Corte', color: 'rgba(255,255,255,0.08)', icon: <RefreshCw size={16} />, outlined: true }
@@ -271,8 +281,25 @@ const Corte = () => {
             /* ===== DESKTOP: Kanban 3 columnas sincronizadas ===== */
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0 1.5rem' }}>
               {/* Headers */}
-              {columnas.map(col => (
-                <div key={col.titulo} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              {columnas.map((col, colIdx) => (
+                <div
+                  key={col.titulo}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverCol(colIdx); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedIdRef.current) {
+                      const actual = [...cola, ...enProgreso, ...terminadosHoy].find(p => p.id === draggedIdRef.current);
+                      if (actual && actual.estado !== col.dropEstado) cambiarEstado(draggedIdRef.current, col.dropEstado);
+                      draggedIdRef.current = null; setDragOverCol(null);
+                    }
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem',
+                    padding: '0.4rem 0.5rem', borderRadius: '8px',
+                    background: dragOverCol === colIdx ? col.color + '18' : 'transparent',
+                    transition: 'background 0.15s'
+                  }}
+                >
                   <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: col.color, flexShrink: 0 }}></div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main)' }}>
@@ -289,14 +316,26 @@ const Corte = () => {
               {(() => {
                 const maxRows = Math.max(cola.length, enProgreso.length, terminadosHoy.length, 1);
                 return Array.from({ length: maxRows }, (_, rowIndex) =>
-                  columnas.map((col) => {
+                  columnas.map((col, colIdx) => {
                     const pedido = col.pedidos[rowIndex];
+                    const dropHandlers = {
+                      onDragOver: (e) => { e.preventDefault(); setDragOverCol(colIdx); },
+                      onDragLeave: () => setDragOverCol(null),
+                      onDrop: (e) => {
+                        e.preventDefault();
+                        if (draggedIdRef.current) {
+                          const actual = [...cola, ...enProgreso, ...terminadosHoy].find(p => p.id === draggedIdRef.current);
+                          if (actual && actual.estado !== col.dropEstado) cambiarEstado(draggedIdRef.current, col.dropEstado);
+                          draggedIdRef.current = null; setDragOverCol(null);
+                        }
+                      }
+                    };
                     return pedido ? (
-                      <div key={`${col.titulo}-${rowIndex}`} style={{ marginBottom: '1rem' }}>
+                      <div key={`${col.titulo}-${rowIndex}`} {...dropHandlers} style={{ marginBottom: '1rem', borderRadius: '10px', outline: dragOverCol === colIdx ? `2px dashed ${col.color}` : '2px dashed transparent', transition: 'outline 0.12s' }}>
                         <CardPedido pedido={pedido} acciones={col.acciones} />
                       </div>
                     ) : (
-                      <div key={`empty-${col.titulo}-${rowIndex}`} style={{ marginBottom: '1rem' }}>
+                      <div key={`empty-${col.titulo}-${rowIndex}`} {...dropHandlers} style={{ marginBottom: '1rem', borderRadius: '8px', outline: dragOverCol === colIdx ? `2px dashed ${col.color}` : '2px dashed transparent', transition: 'outline 0.12s' }}>
                         {rowIndex === 0 && (
                           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
                             Sin pedidos

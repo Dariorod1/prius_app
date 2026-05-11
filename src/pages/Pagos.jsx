@@ -80,8 +80,10 @@ const Pagos = () => {
       .or(orParts.join(','))
       .order('fecha_creacion', { ascending: false });
 
-    if (!error && data) setPedidosEncontrados(data);
-    else console.error(error);
+    if (!error && data) {
+      console.log('[BUSCAR] Resultados de DB:', data.map(p => ({ id: p.id, estado: p.estado, cliente: p.clientes?.nombre })));
+      setPedidosEncontrados(data);
+    } else console.error(error);
     
     setLoadingSearch(false);
   };
@@ -98,10 +100,22 @@ const Pagos = () => {
           table: 'pedidos',
         },
         (payload) => {
-          console.log('Cambio detectado en Realtime:', payload);
-          // Si hay resultados en pantalla, refrescamos la búsqueda para sincronizar datos
-          if (hasSearched && searchQuery.trim()) {
-            handleBuscar();
+          console.log('[REALTIME] Evento recibido:', payload.eventType, payload);
+          console.log('[REALTIME] payload.new:', payload.new);
+          // Actualizar el pedido directamente desde el payload — sin stale closure
+          if (payload.eventType === 'UPDATE' && payload.new?.id) {
+            console.log('[REALTIME] Actualizando pedido id:', payload.new.id, '-> estado:', payload.new.estado);
+            setPedidosEncontrados(prev => {
+              const existe = prev.some(p => p.id === payload.new.id);
+              console.log('[REALTIME] ¿El pedido existe en pantalla?', existe, '| total en pantalla:', prev.length);
+              return prev.map(p =>
+                p.id === payload.new.id
+                  ? { ...p, estado: payload.new.estado, monto_pagado: payload.new.monto_pagado, precio_total: payload.new.precio_total }
+                  : p
+              );
+            });
+          } else {
+            console.log('[REALTIME] Evento ignorado (no es UPDATE o falta id)');
           }
         }
       )
@@ -110,7 +124,7 @@ const Pagos = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [hasSearched, searchQuery]);
+  }, []);
 
   const abrirModalPago = async (pedido) => {
     setSelectedPedido(pedido);
@@ -268,13 +282,15 @@ const Pagos = () => {
   };
 
   const renderStatusBar = (estadoActual) => {
+    console.log('[STATUS BAR] estadoActual recibido:', estadoActual);
     const steps = [
       { id: 'Ingresado',             labels: ['Pendiente', 'Autorizado'] },
       { id: 'En Corte',              labels: ['En Corte'] },
       { id: 'Corte Finalizado',      labels: ['Corte Finalizado'] },
       { id: 'En Confección',         labels: ['En Confección'] },
       { id: 'Confec. Finalizada',    labels: ['Confección Finalizada'] },
-      { id: 'Bordado',               labels: ['Bordado', 'Terminado'] },
+      { id: 'En Bordado',            labels: ['En Bordado'] },
+      { id: 'Bord. Finalizado',      labels: ['Bordado Finalizado'] },
       { id: 'Entregado',             labels: ['Entregado'] }
     ];
 
@@ -284,6 +300,7 @@ const Pagos = () => {
         currentStepIndex = index;
       }
     });
+    console.log('[STATUS BAR] currentStepIndex calculado:', currentStepIndex, '| paso:', steps[currentStepIndex]?.id);
 
     if (isMobile) {
       return (

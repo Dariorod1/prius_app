@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Sparkles, User, Clock, CheckCircle, PlayCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 
@@ -24,6 +24,8 @@ const Bordado = () => {
 
   const [actualizando, setActualizando] = useState(null);
   const [mensaje, setMensaje] = useState(null);
+  const draggedIdRef = useRef(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
 
   useEffect(() => {
     if (mensaje) {
@@ -102,10 +104,15 @@ const Bordado = () => {
   };
 
   const CardPedido = ({ pedido, acciones }) => (
-    <div style={{
+    <div
+      draggable={!isMobile}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; draggedIdRef.current = pedido.id; }}
+      onDragEnd={() => { draggedIdRef.current = null; setDragOverCol(null); }}
+      style={{
       background: '#1E293B', borderRadius: '12px', padding: '1.5rem',
       border: '2px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '1rem',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)',
+      cursor: !isMobile ? 'grab' : 'default'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
@@ -179,6 +186,7 @@ const Bordado = () => {
     {
       titulo: 'Cola de Bordado',
       color: '#3B82F6',
+      dropEstado: 'Confección Finalizada',
       pedidos: cola,
       acciones: [
         { label: 'Iniciar Bordado', nextEstado: 'En Bordado', color: '#7C3AED', icon: <PlayCircle size={24} /> }
@@ -187,6 +195,7 @@ const Bordado = () => {
     {
       titulo: 'En Bordado',
       color: '#7C3AED',
+      dropEstado: 'En Bordado',
       pedidos: enProgreso,
       acciones: [
         { label: 'Finalizar Bordado', nextEstado: 'Bordado Finalizado', color: '#10B981', icon: <CheckCircle size={24} /> },
@@ -196,6 +205,7 @@ const Bordado = () => {
     {
       titulo: 'Terminados (Hoy)',
       color: '#10B981',
+      dropEstado: 'Bordado Finalizado',
       pedidos: terminadosHoy,
       acciones: [
         { label: 'Reabrir Bordado', nextEstado: 'En Bordado', color: 'rgba(255,255,255,0.08)', icon: <RefreshCw size={24} />, outlined: true }
@@ -269,8 +279,25 @@ const Bordado = () => {
             </>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0 2rem' }}>
-              {columnas.map(col => (
-                <div key={col.titulo} style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+              {columnas.map((col, colIdx) => (
+                <div
+                  key={col.titulo}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverCol(colIdx); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedIdRef.current) {
+                      const actual = [...cola, ...enProgreso, ...terminadosHoy].find(p => p.id === draggedIdRef.current);
+                      if (actual && actual.estado !== col.dropEstado) cambiarEstado(draggedIdRef.current, col.dropEstado);
+                      draggedIdRef.current = null; setDragOverCol(null);
+                    }
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem',
+                    padding: '0.4rem 0.5rem', borderRadius: '8px',
+                    background: dragOverCol === colIdx ? col.color + '18' : 'transparent',
+                    transition: 'background 0.15s'
+                  }}
+                >
                   <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: col.color, flexShrink: 0 }}></div>
                   <h3 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-main)' }}>
                     {col.titulo}
@@ -284,14 +311,26 @@ const Bordado = () => {
               {(() => {
                 const maxRows = Math.max(cola.length, enProgreso.length, terminadosHoy.length, 1);
                 return Array.from({ length: maxRows }, (_, rowIndex) =>
-                  columnas.map((col) => {
+                  columnas.map((col, colIdx) => {
                     const pedido = col.pedidos[rowIndex];
+                    const dropHandlers = {
+                      onDragOver: (e) => { e.preventDefault(); setDragOverCol(colIdx); },
+                      onDragLeave: () => setDragOverCol(null),
+                      onDrop: (e) => {
+                        e.preventDefault();
+                        if (draggedIdRef.current) {
+                          const actual = [...cola, ...enProgreso, ...terminadosHoy].find(p => p.id === draggedIdRef.current);
+                          if (actual && actual.estado !== col.dropEstado) cambiarEstado(draggedIdRef.current, col.dropEstado);
+                          draggedIdRef.current = null; setDragOverCol(null);
+                        }
+                      }
+                    };
                     return pedido ? (
-                      <div key={`${col.titulo}-${rowIndex}`} style={{ marginBottom: '1.5rem' }}>
+                      <div key={`${col.titulo}-${rowIndex}`} {...dropHandlers} style={{ marginBottom: '1.5rem', borderRadius: '12px', outline: dragOverCol === colIdx ? `2px dashed ${col.color}` : '2px dashed transparent', transition: 'outline 0.12s' }}>
                         <CardPedido pedido={pedido} acciones={col.acciones} />
                       </div>
                     ) : (
-                      <div key={`empty-${col.titulo}-${rowIndex}`} style={{ marginBottom: '1.5rem' }}>
+                      <div key={`empty-${col.titulo}-${rowIndex}`} {...dropHandlers} style={{ marginBottom: '1.5rem', borderRadius: '12px', outline: dragOverCol === colIdx ? `2px dashed ${col.color}` : '2px dashed transparent', transition: 'outline 0.12s' }}>
                         {rowIndex === 0 && (
                           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '2px dashed var(--border-color)', fontSize: '1.2rem' }}>
                             Vacío
