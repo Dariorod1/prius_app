@@ -120,7 +120,7 @@ const Empleados = () => {
               <option value="bordador">Bordador</option>
             </select>
           </div>
-          <button type="submit" className="btn btn-primary" disabled={loading} style={{ height: '42px', marginTop: 'auto', marginBottom: '0.5rem' }}>+ Crear Empleado</button>
+          <button type="submit" className="btn btn-primary btn-desktop-h" disabled={loading} style={{ marginTop: 'auto', marginBottom: '1rem' }}>+ Crear Empleado</button>
         </form>
         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
           La contraseña será <strong style={{ color: 'var(--accent)' }}>prius-[usuario]</strong> por defecto.

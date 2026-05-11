@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useState, useEffect } from 'react';
-import { Menu, LogOut, Share2 } from 'lucide-react';
+import { Menu, LogOut, Share2, Sun, Moon } from 'lucide-react';
 
 // Detecta iOS (iPhone / iPad / iPod) — incluyendo iPad en modo desktop
 const isIOS = () =>
@@ -16,6 +16,14 @@ const isStandalone = () =>
 const Layout = ({ user, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showIOSBanner, setShowIOSBanner] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('priusTheme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('priusTheme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   useEffect(() => {
     // Mostrar el banner solo en iOS, solo si no está ya instalada
@@ -39,7 +47,7 @@ const Layout = ({ user, onLogout }) => {
           <div style={{
             display: 'flex', alignItems: 'center', gap: '0.75rem',
             padding: '0.75rem 1rem',
-            background: 'linear-gradient(135deg, #5B4FE8, #7C3AED)',
+            background: 'linear-gradient(135deg, #009EE3, #0074B8)',
             color: 'white', fontSize: '0.85rem', flexShrink: 0,
           }}>
             <Share2 size={18} style={{ flexShrink: 0 }} />
@@ -68,6 +76,9 @@ const Layout = ({ user, onLogout }) => {
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{user.rol.toUpperCase()}</div>
             </div>
             <img src="/img/prius_logo.jpg" alt="Avatar" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '2px solid var(--primary)', objectFit: 'cover' }} />
+            <button onClick={toggleTheme} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center' }}>
+              {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
+            </button>
             <button onClick={onLogout} title="Cerrar Sesión" style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '5px' }}>
               <LogOut size={20} />
             </button>

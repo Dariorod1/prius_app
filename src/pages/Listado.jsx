@@ -72,26 +72,35 @@ const Listado = () => {
     const doc = new jsPDF({ orientation: 'landscape' });
 
     // — Encabezado —
-    doc.setFillColor(15, 23, 42); // --bg-dark
-    doc.rect(0, 0, 297, 28, 'F');
+    const pageWidth = doc.internal.pageSize.width;
+    const ahora = new Date();
+    const fechaHoraStr =
+      ahora.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      + '  '
+      + ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
+    doc.setTextColor(20, 20, 30);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('PRIUS', 148.5, 12, { align: 'center' });
+    doc.text('PRIUS', 14, 13);
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(148, 163, 184); // --text-muted
-    doc.text('Sistema de Gestión de Producción Textil', 148.5, 18, { align: 'center' });
-    doc.text(
-      `Generado el ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}  ·  ${resumenFiltros}`,
-      148.5, 23, { align: 'center' }
-    );
+    doc.setTextColor(100, 100, 110);
+    doc.text(fechaHoraStr, pageWidth - 14, 13, { align: 'right' });
+
+    doc.setDrawColor(180, 185, 200);
+    doc.setLineWidth(0.5);
+    doc.line(14, 17, pageWidth - 14, 17);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(120, 120, 130);
+    doc.text(`Filtros: ${resumenFiltros}`, 14, 22);
 
     // — Tabla —
     autoTable(doc, {
-      startY: 32,
+      startY: 28,
       head: [['#', 'Cliente', 'DNI', 'Institución', 'Prenda / Talle', 'Estado', 'Total', 'Pagado', 'Fecha']],
       body: pedidos.map((p, i) => {
         const total  = parseFloat(p.precio_total);
@@ -115,7 +124,7 @@ const Listado = () => {
         textColor: [15, 23, 42],
       },
       headStyles: {
-        fillColor: [79, 70, 229], // --primary
+        fillColor: [0, 158, 227],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 8,

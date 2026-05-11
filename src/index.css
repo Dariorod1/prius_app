@@ -1,17 +1,36 @@
 :root {
-  --primary: #5B4FE8;
-  --primary-hover: #4A3DD4;
-  --primary-glow: rgba(91, 79, 232, 0.3);
-  --bg-dark: #0F172A;
-  --bg-sidebar: #161E2E;
-  --text-main: #F1F5F9;
-  --text-muted: #8899B4;
-  --accent: #00C896;
-  --accent-hover: #00A87E;
+  /* Brand — consistente en ambos temas */
+  --primary: #009EE3;
+  --primary-hover: #0082C4;
+  --primary-glow: rgba(0, 158, 227, 0.25);
   --danger: #EF4444;
-  --border-color: #263046;
   --sidebar-width: 260px;
   --mono-font: 'Space Mono', monospace;
+
+  /* Tema oscuro (default — charcoal) */
+  --bg-dark: #1C1C1C;
+  --bg-sidebar: #262626;
+  --text-main: #EFEFEF;
+  --text-muted: #8A8A9A;
+  --accent: #00C896;
+  --accent-hover: #00A87E;
+  --border-color: #383838;
+  --topbar-bg: rgba(38, 38, 38, 0.90);
+  --nav-hover-bg: rgba(0, 158, 227, 0.07);
+}
+
+/* Tema claro — inspirado en Mercado Pago */
+[data-theme="light"] {
+  --bg-dark: #F0F4F8;
+  --bg-sidebar: #FFFFFF;
+  --text-main: #1A1A2E;
+  --text-muted: #5E6D82;
+  --accent: #00A650;
+  --accent-hover: #008040;
+  --border-color: #DDE3EE;
+  --topbar-bg: rgba(255, 255, 255, 0.92);
+  --nav-hover-bg: rgba(0, 158, 227, 0.08);
+  --primary-glow: rgba(0, 158, 227, 0.15);
 }
 
 * {
@@ -21,7 +40,7 @@
 }
 
 body {
-  font-family: 'DM Sans', system-ui, Helvetica, Arial, sans-serif;
+  font-family: 'Nunito Sans', system-ui, Helvetica, Arial, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
   min-height: 100vh;
@@ -90,7 +109,7 @@ body {
 }
 
 .nav-item:hover, .nav-item.active {
-  background-color: rgba(91, 79, 232, 0.08);
+  background-color: var(--nav-hover-bg);
   color: var(--primary);
   border-left: 3px solid var(--primary);
 }
@@ -119,7 +138,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  background: rgba(22, 30, 46, 0.85);
+  background: var(--topbar-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -322,6 +341,17 @@ textarea.form-control {
   box-shadow: 0 4px 16px var(--primary-glow);
 }
 
+/* Altura fija para botones de formulario en desktop (no afecta mobile) */
+.btn-desktop-h {
+  height: 45px;
+}
+
+@media (max-width: 768px) {
+  .btn-desktop-h {
+    height: auto;
+  }
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -398,6 +428,36 @@ textarea.form-control {
 
 .show-on-mobile {
    display: none;
+}
+
+/* ============================================================
+   LIGHT MODE OVERRIDES
+   ============================================================ */
+[data-theme="light"] .demo-role-selector select {
+  color: var(--text-main);
+  background: var(--bg-dark);
+}
+
+[data-theme="light"] .form-section {
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .sidebar {
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .topbar {
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .sidebar-header h2 {
+  color: var(--primary);
+}
+
+[data-theme="light"] .responsive-table tr {
+  background-color: var(--bg-sidebar);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 /* ============================================================

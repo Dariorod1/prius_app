@@ -274,7 +274,7 @@ const Recepcion = () => {
           </div>
         </div>
 
-        <div style={{ marginTop: '2rem', textAlign: 'right', padding: '1rem', background: 'rgba(79, 70, 229, 0.1)', borderRadius: '8px' }}>
+        <div style={{ marginTop: '2rem', textAlign: 'center', padding: '1rem', background: 'rgba(0, 158, 227, 0.05)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <button type="submit" className="btn btn-primary" style={{ width: '100%', maxWidth: '300px', fontSize: '1.1rem' }}>
             Revisar y Confirmar
           </button>

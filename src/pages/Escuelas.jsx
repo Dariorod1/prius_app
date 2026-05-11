@@ -114,7 +114,7 @@ const Escuelas = () => {
               required 
             />
           </div>
-          <button type="submit" className="btn btn-primary" disabled={loading}>+ Guardar</button>
+          <button type="submit" className="btn btn-primary btn-desktop-h" disabled={loading}>+ Guardar</button>
         </form>
       </div>
 
