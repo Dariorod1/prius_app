@@ -81,6 +81,52 @@ ALTER TABLE public.clientes DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pedidos DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.empleados DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pagos_historial DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pedido_estado_log DISABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- DATOS DE PRUEBA (MOCK DATA)
+-- ==========================================
+
+-- 8. Tabla Lotes (Agrupación de pedidos por escuela+grado)
+CREATE TABLE public.lotes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    institucion_id UUID REFERENCES public.instituciones(id) ON DELETE SET NULL,
+    grado TEXT NOT NULL,
+    imagen_chomba_url TEXT,
+    imagen_campera_url TEXT,
+    prioridad TEXT DEFAULT 'ninguna', -- ninguna, baja, media, alta, urgente
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(institucion_id, grado)
+);
+
+-- 9. Columna grado en pedidos (vincula pedidos a un lote)
+ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS grado TEXT;
+
+-- ==========================================
+-- CONFIGURACIÓN DE STORAGE (Bucket de imágenes)
+-- ==========================================
+-- Crear bucket 'imagenes' como PÚBLICO desde el Dashboard de Supabase.
+-- Luego ejecutar estas policies para permitir subir/leer:
+
+CREATE POLICY "Allow public uploads" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'imagenes');
+
+CREATE POLICY "Allow public updates" ON storage.objects
+  FOR UPDATE USING (bucket_id = 'imagenes');
+
+CREATE POLICY "Allow public reads" ON storage.objects
+  FOR SELECT USING (bucket_id = 'imagenes');
+
+CREATE POLICY "Allow public deletes" ON storage.objects
+  FOR DELETE USING (bucket_id = 'imagenes');
+
+-- Marcar el bucket como público (necesario para URLs /object/public/)
+UPDATE storage.buckets SET public = true WHERE id = 'imagenes';
+
+-- ==========================================
+-- RLS para tabla lotes
+-- ==========================================
+ALTER TABLE public.lotes DISABLE ROW LEVEL SECURITY;
 
 -- ==========================================
 -- DATOS DE PRUEBA (MOCK DATA)

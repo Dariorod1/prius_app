@@ -9,13 +9,15 @@ import {
   School,
   Users,
   X,
-  FileText
+  FileText,
+  Layers
 } from 'lucide-react';
 
 const Sidebar = ({ currentRole, isOpen, setIsOpen }) => {
   const routes = [
     { path: '/', name: 'Dashboard', icon: <LayoutDashboard className="nav-icon" />, roles: ['admin', 'operador', 'cortador', 'confeccion', 'bordador'] },
     { path: '/pedidos', name: 'Recepción', icon: <ClipboardList className="nav-icon" />, roles: ['admin', 'operador'] },
+    { path: '/recepcion-lote', name: 'Lotes', icon: <Layers className="nav-icon" />, roles: ['admin', 'operador'] },
     { path: '/escuelas', name: 'Escuelas', icon: <School className="nav-icon" />, roles: ['admin', 'operador'] },
     { path: '/empleados', name: 'Empleados', icon: <Users className="nav-icon" />, roles: ['admin'] },
     { path: '/pagos', name: 'Pagos/Cuotas', icon: <CreditCard className="nav-icon" />, roles: ['admin', 'operador'] },

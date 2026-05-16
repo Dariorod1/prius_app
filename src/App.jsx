@@ -297,6 +297,7 @@ const Dashboard = () => {
 
 import Login from './pages/Login';
 import Recepcion from './pages/Recepcion';
+import RecepcionLote from './pages/RecepcionLote';
 import Escuelas from './pages/Escuelas';
 import Empleados from './pages/Empleados';
 import Pagos from './pages/Pagos';
@@ -366,6 +367,7 @@ function App() {
         <Route path="/" element={<Layout user={user} onLogout={handleLogout} />}>
           <Route index element={<Dashboard />} />
           <Route path="pedidos" element={<Recepcion />} />
+          <Route path="recepcion-lote" element={<RecepcionLote />} />
           <Route path="escuelas" element={<Escuelas />} />
           <Route path="empleados" element={<Empleados />} />
           <Route path="pagos" element={<Pagos />} />

@@ -104,7 +104,17 @@ El corazón del sistema.
     - `estado`: (`Pendiente`, `Autorizado`, `En Corte`, `Corte Finalizado`, `En Confección`, `Confección Finalizada`, `En Bordado`, `Bordado Finalizado`, `Entregado`).
     - `precio_total`: Monto acordado.
     - `monto_pagado`: Suma de todos los pagos realizados.
-- **Ejemplo:** `{ tipo_prenda: 'Remera', talle: 'XXL', precio_total: 10000, monto_pagado: 5000, estado: 'Autorizado' }`
+    - `grado`: (Text, opcional) Grado/división del lote al que pertenece. Si es null, es un pedido individual.
+    - `observaciones`: Notas, alteraciones, puños, etc.
+- **Ejemplo:** `{ tipo_prenda: 'Chomba', talle: 'L', grado: '3er Grado A', precio_total: 25000, monto_pagado: 12500, estado: 'Autorizado' }`
+
+### 4.6 Lotes (`lotes`)
+Representa una agrupación de pedidos por escuela + grado. Se crea desde Recepción por Lote.
+- **Campos:** `id (UUID)`, `institucion_id (FK)`, `grado (text)`, `imagen_chomba_url (text)`, `imagen_campera_url (text)`, `prioridad (text)`, `created_at`.
+- **Prioridades:** `ninguna`, `baja`, `media`, `alta`, `urgente`.
+- **Constraint:** UNIQUE(institucion_id, grado) — solo un lote por escuela+grado.
+- **Imágenes:** Se almacenan en Supabase Storage (bucket `imagenes`, público). Path: `lotes/{loteId}_chomba.ext` o `lotes/{loteId}_campera.ext`.
+- **Ejemplo:** `{ institucion_id: '...', grado: '3er Grado A', prioridad: 'alta', imagen_chomba_url: 'https://...' }`
 
 ### 4.4 Historial de Pagos (`pagos_historial`)
 Auditoría financiera.
@@ -120,13 +130,21 @@ Trazabilidad de producción.
 
 ## 5. Lógica de Negocio y Flujo Operativo
 
-### 5.1 Regla del 50% (Control de Riesgo)
-Un pedido nace en estado **Pendiente**. Solo pasa a **Autorizado** (visible para el cortador) si:
-1. `monto_pagado >= (precio_total * 0.5)`
-2. O un usuario con rol `admin` presiona **"Forzar Autorización"**.
+### 5.1 Autorización de Pedidos (Envío a Corte)
+Un pedido nace en estado **Pendiente**. La autorización para corte se realiza **manualmente** desde la pantalla de Recepción por Lote:
+1. El operador selecciona pedidos individuales con checkboxes o usa "Seleccionar todos".
+2. Presiona "Enviar a Corte" → los pedidos seleccionados pasan a **Autorizado**.
+3. Un usuario con rol `admin` también puede usar **"Forzar Autorización"** desde Pagos.
+
+> **Nota:** No hay regla automática del 50%. La decisión de cuándo enviar a corte es del operador.
 
 ### 5.2 El Flujo de Producción (Kanban)
-1. **Corte:** El cortador ve la cola de `Autorizado`. Al iniciar, el pedido pasa a `En Corte`. Al terminar, a `Corte Finalizado`.
+1. **Corte:** El cortador ve la cola de `Autorizado`. Los pedidos se agrupan visualmente por **lote** (escuela + grado + tipo_prenda). Cada card muestra la imagen de la prenda y la prioridad como barra de color. Al hacer click/tap se despliega el detalle con:
+   - **Resumen de talles** (fichas grandes: cantidad + talle, ordenadas de menor a mayor). Es la info crítica para el cortador.
+   - Lista de todos los alumnos/prendas con estado individual.
+   - Acciones masivas (mover todo el lote) + botones individuales por prenda.
+   - **Lote unificado:** Si se finaliza una prenda individual, la card del lote permanece en "En Corte" hasta que TODAS estén finalizadas. Se muestra progreso "2/5 finalizadas".
+   Al iniciar, el pedido pasa a `En Corte`. Al terminar, a `Corte Finalizado`.
 2. **Confección:** El confeccionador toma los `Corte Finalizado`. Inicia (`En Confección`) y termina (`Confección Finalizada`).
 3. **Bordado:** El bordador toma los `Confección Finalizada`. Al iniciar, pasa a `En Bordado`. Al terminar, a `Bordado Finalizado`. Cada cambio se registra en `pedido_estado_log`.
 4. **Entrega:** Gestionada desde el módulo de **Cobranzas** (`Pagos.jsx`). El botón "Entregar Pedido" aparece sobre la card del pedido únicamente cuando se cumplen **ambas** condiciones simultáneamente:
@@ -167,11 +185,15 @@ Un pedido nace en estado **Pendiente**. Solo pasa a **Autorizado** (visible para
 - [x] **Sidebar:** Active indicator con `border-left`, logo PRIUS APP en Space Mono, navegación filtrada por rol.
 - [x] **Topbar:** Backdrop-filter blur, avatar, toggle tema, logout.
 - [x] **Botones:** Hover con glow + translateY. Clase `.btn-desktop-h` para altura 45px solo en desktop.
+- [x] **Recepción por Lote (`/recepcion-lote`):** Carga masiva de pedidos por escuela+grado. Formulario repetitivo con DNI autocomplete, checkboxes Chomba/Campera, talles, precios (pre-definidos por lote), observaciones, seña. Guardado inmediato por alumno. Vista previa de lista con tabs Chomba/Campera. Resumen (alumnos, prendas, total, % cobrado). Upload de imágenes por prenda (Supabase Storage) con botón eliminar + modal de confirmación. Selector de prioridad del lote. Checkboxes para seleccionar pedidos y enviarlos a corte manualmente. Se puede retomar en cualquier momento seleccionando la misma escuela+grado.
+- [x] **Corte por Lotes:** Cards agrupadas por lote con imagen grande de la prenda como hero. Barra de color de prioridad (verde=alta, roja=urgente, amarilla=media). Click para ver detalle del lote con resumen de talles (fichas grandes), lista de todos los alumnos/prendas con estado individual. Acciones masivas + individuales. Lote unificado: no se divide la card aunque haya estados mixtos. Indicador de progreso ("2/5 finalizadas"). Ordenado por prioridad.
+- [x] **Supabase Storage:** Bucket `imagenes` (público, `UPDATE storage.buckets SET public = true`). Policies de INSERT/UPDATE/SELECT/DELETE habilitadas. Cache-buster (`?t=timestamp`) en URLs para evitar imágenes cacheadas.
 
 ### ⏳ Pendiente (Por hacer)
 - [ ] **Notificaciones WhatsApp:** Avisar al cliente cuando su prenda cambie de estado (integración API).
 - [ ] **Reportes:** Dashboard estadístico de tiempos de producción y flujo de caja.
 - [ ] **Limpiar console.logs de debug:** Hay logs temporales en `Pagos.jsx` (`[STATUS BAR]`, `[REALTIME]`, `[BUSCAR]`) que deben removerse antes del deploy final.
+- [ ] **Confección/Bordado por Lotes:** Adaptar el mismo diseño de Corte (agrupado por lote con imagen) a Confección y Bordado.
 
 ---
 
