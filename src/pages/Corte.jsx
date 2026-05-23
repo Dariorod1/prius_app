@@ -262,24 +262,69 @@ const Corte = () => {
         {/* Resumen de talles */}
         {pedidosDelGrupo.length > 0 && (() => {
           const talleOrden = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2', '4', '6', '8', '10', '12', '14', '16'];
-          const conteo = {};
-          pedidosDelGrupo.forEach(p => { conteo[p.talle] = (conteo[p.talle] || 0) + 1; });
-          const tallesOrdenados = Object.entries(conteo).sort((a, b) => {
+          const sortTalle = (arr) => arr.sort((a, b) => {
             const ia = talleOrden.indexOf(a[0]);
             const ib = talleOrden.indexOf(b[0]);
             return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
           });
+
+          // Separate standard vs exception pedidos
+          const normales = pedidosDelGrupo.filter(p => !p.observaciones);
+          const excepciones = pedidosDelGrupo.filter(p => !!p.observaciones);
+
+          // Group standards by talle
+          const conteoNormal = {};
+          normales.forEach(p => { conteoNormal[p.talle] = (conteoNormal[p.talle] || 0) + 1; });
+          const normalesOrdenados = sortTalle(Object.entries(conteoNormal));
+
+          // Group exceptions by talle+observacion
+          const conteoExcep = {};
+          excepciones.forEach(p => {
+            const key = p.talle + '|||' + p.observaciones;
+            if (!conteoExcep[key]) conteoExcep[key] = { talle: p.talle, obs: p.observaciones, cant: 0 };
+            conteoExcep[key].cant++;
+          });
+          const excepcionesOrdenadas = Object.values(conteoExcep).sort((a, b) => {
+            const ia = talleOrden.indexOf(a.talle);
+            const ib = talleOrden.indexOf(b.talle);
+            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+          });
+
           return (
             <div style={{ marginBottom: '1.5rem', padding: '1.25rem', background: 'var(--bg-dark)', borderRadius: '12px', border: '2px solid var(--border-color)' }}>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cortar:</div>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {tallesOrdenados.map(([talle, cant]) => (
-                  <div key={talle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.75rem 1.25rem', borderRadius: '10px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', minWidth: '70px' }}>
-                    <span style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--accent)', lineHeight: 1 }}>{cant}</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-main)', marginTop: '4px' }}>{talle}</span>
+              {/* Standard talles */}
+              {normalesOrdenados.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  {normalesOrdenados.map(([talle, cant]) => (
+                    <div key={talle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.75rem 1.25rem', borderRadius: '10px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', minWidth: '70px' }}>
+                      <span style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--accent)', lineHeight: 1 }}>{cant}</span>
+                      <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-main)', marginTop: '4px' }}>{talle}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Exceptions */}
+              {excepcionesOrdenadas.length > 0 && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '1rem 0 0.75rem 0' }}>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+                    <span style={{ fontSize: '0.75rem', color: '#FACC15', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                      <AlertTriangle size={13} aria-hidden="true" /> Con excepción
+                    </span>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
                   </div>
-                ))}
-              </div>
+                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    {excepcionesOrdenadas.map((e) => (
+                      <div key={e.talle + e.obs} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.6rem 1rem', borderRadius: '10px', background: 'rgba(250,204,21,0.07)', border: '1px solid rgba(250,204,21,0.3)', minWidth: '70px' }}>
+                        <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#FACC15', lineHeight: 1 }}>{e.cant}</span>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', marginTop: '3px' }}>{e.talle}</span>
+                        <span style={{ fontSize: '0.7rem', color: '#FACC15', marginTop: '4px', textAlign: 'center', maxWidth: '90px', lineHeight: 1.3 }}>{e.obs}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           );
         })()}

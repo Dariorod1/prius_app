@@ -18,6 +18,21 @@
   --track-color: #383838;
   --topbar-bg: rgba(38, 38, 38, 0.90);
   --nav-hover-bg: rgba(0, 158, 227, 0.07);
+
+  /* Elevation scale */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
+  --shadow-lg: 0 10px 28px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.25);
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px rgba(0, 158, 227, 0.45);
+
+  /* Motion durations */
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 350ms;
+
+  color-scheme: dark;
 }
 
 /* Tema claro — inspirado en Mercado Pago */
@@ -33,6 +48,10 @@
   --topbar-bg: rgba(255, 255, 255, 0.92);
   --nav-hover-bg: rgba(0, 158, 227, 0.08);
   --primary-glow: rgba(0, 158, 227, 0.15);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 28px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.07);
+  color-scheme: light;
 }
 
 * {
@@ -46,7 +65,29 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-main);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 /* Layout Classes */
@@ -101,19 +142,29 @@ body {
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 1rem 1.5rem;
+  padding: 0.85rem 1.5rem;
   color: var(--text-muted);
   text-decoration: none;
-  transition: all 0.2s;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease, border-color var(--dur-fast) ease;
   gap: 12px;
   font-weight: 500;
   border-left: 3px solid transparent;
+  font-size: 0.9rem;
+  border-radius: 0 8px 8px 0;
+  margin-right: 0.75rem;
+  touch-action: manipulation;
 }
 
 .nav-item:hover, .nav-item.active {
   background-color: var(--nav-hover-bg);
   color: var(--primary);
   border-left: 3px solid var(--primary);
+}
+
+.nav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  color: var(--primary);
 }
 
 .nav-icon {
@@ -304,14 +355,17 @@ body {
   background-color: var(--bg-dark);
   border: 1px solid var(--border-color);
   color: var(--text-main);
-  border-radius: 6px;
+  border-radius: 8px;
   font-family: inherit;
-  transition: border-color 0.2s;
+  font-size: 1rem; /* Prevents iOS auto-zoom */
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+  touch-action: manipulation;
 }
 
 .form-control:focus {
   outline: none;
   border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 textarea.form-control {
@@ -322,14 +376,23 @@ textarea.form-control {
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
   letter-spacing: 0.015em;
+  font-size: 0.9rem;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .btn-primary {
@@ -341,6 +404,11 @@ textarea.form-control {
   background-color: var(--primary-hover);
   transform: translateY(-1px);
   box-shadow: 0 4px 16px var(--primary-glow);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: none;
 }
 
 /* Altura fija para botones de formulario en desktop (no afecta mobile) */
@@ -357,6 +425,13 @@ textarea.form-control {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Tabular numbers for prices/amounts */
+.tabular-nums,
+[class*="precio"], [class*="monto"], [class*="amount"] {
+  font-variant-numeric: tabular-nums;
 }
 
 .form-grid {
@@ -426,6 +501,12 @@ textarea.form-control {
   .btn, .form-control, select {
       min-height: 44px; /* Apple/Google standard touch target */
   }
+
+  .nav-item {
+    padding: 0.9rem 1.25rem;
+    font-size: 0.95rem;
+    border-radius: 0 6px 6px 0;
+  }
 }
 
 .show-on-mobile {
@@ -447,6 +528,18 @@ textarea.form-control {
 
 [data-theme="light"] .sidebar {
   box-shadow: 2px 0 16px rgba(0, 0, 0, 0.07);
+}
+
+/* ============================================================
+   PREFERS-REDUCED-MOTION
+   Respects system-level "reduce motion" accessibility setting
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 [data-theme="light"] .topbar {

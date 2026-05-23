@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Agent and GitHub config (internal tooling, not needed in repo)
+.agents/
+.github/

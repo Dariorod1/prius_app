@@ -110,11 +110,12 @@ El corazón del sistema.
 
 ### 4.6 Lotes (`lotes`)
 Representa una agrupación de pedidos por escuela + grado. Se crea desde Recepción por Lote.
-- **Campos:** `id (UUID)`, `institucion_id (FK)`, `grado (text)`, `imagen_chomba_url (text)`, `imagen_campera_url (text)`, `prioridad (text)`, `created_at`.
+- **Campos:** `id (UUID)`, `institucion_id (FK)`, `grado (text)`, `imagen_chomba_url (text)`, `imagen_campera_url (text)`, `prioridad (text)`, `precio_chomba (numeric)`, `precio_campera (numeric)`, `created_at`.
 - **Prioridades:** `ninguna`, `baja`, `media`, `alta`, `urgente`.
 - **Constraint:** UNIQUE(institucion_id, grado) — solo un lote por escuela+grado.
 - **Imágenes:** Se almacenan en Supabase Storage (bucket `imagenes`, público). Path: `lotes/{loteId}_chomba.ext` o `lotes/{loteId}_campera.ext`.
-- **Ejemplo:** `{ institucion_id: '...', grado: '3er Grado A', prioridad: 'alta', imagen_chomba_url: 'https://...' }`
+- **Precios del lote:** `precio_chomba` y `precio_campera` se guardan en el lote (no en cada pedido por separado). Se persisten automáticamente al salir del campo en RecepcionLote y se pre-cargan la próxima vez que se abre el lote.
+- **Ejemplo:** `{ institucion_id: '...', grado: '3er Grado A', prioridad: 'alta', precio_chomba: 25000, precio_campera: 38000, imagen_chomba_url: 'https://...' }`
 
 ### 4.4 Historial de Pagos (`pagos_historial`)
 Auditoría financiera.
@@ -185,9 +186,11 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
 - [x] **Sidebar:** Active indicator con `border-left`, logo PRIUS APP en Space Mono, navegación filtrada por rol.
 - [x] **Topbar:** Backdrop-filter blur, avatar, toggle tema, logout.
 - [x] **Botones:** Hover con glow + translateY. Clase `.btn-desktop-h` para altura 45px solo en desktop.
-- [x] **Recepción por Lote (`/recepcion-lote`):** Carga masiva de pedidos por escuela+grado. Formulario repetitivo con DNI autocomplete, checkboxes Chomba/Campera, talles, precios (pre-definidos por lote), observaciones, seña. Guardado inmediato por alumno. Vista previa de lista con tabs Chomba/Campera. Resumen (alumnos, prendas, total, % cobrado). Upload de imágenes por prenda (Supabase Storage) con botón eliminar + modal de confirmación. Selector de prioridad del lote. Checkboxes para seleccionar pedidos y enviarlos a corte manualmente. Se puede retomar en cualquier momento seleccionando la misma escuela+grado.
+- [x] **Recepción por Lote (`/recepcion-lote`):** Carga masiva de pedidos por escuela+grado. Formulario repetitivo con DNI autocomplete, checkboxes Chomba/Campera, talles, precios (pre-definidos por lote y persistidos automáticamente en `lotes.precio_chomba/campera`), observaciones, seña. Guardado inmediato por alumno. Vista previa de lista con tabs Chomba/Campera. Resumen (alumnos, prendas, total, % cobrado). Upload de imágenes por prenda (Supabase Storage) con botón eliminar + modal de confirmación. Selector de prioridad del lote. Checkboxes para seleccionar pedidos y enviarlos a corte manualmente. Se puede retomar en cualquier momento seleccionando la misma escuela+grado.
 - [x] **Corte por Lotes:** Cards agrupadas por lote con imagen grande de la prenda como hero. Barra de color de prioridad (verde=alta, roja=urgente, amarilla=media). Click para ver detalle del lote con resumen de talles (fichas grandes), lista de todos los alumnos/prendas con estado individual. Acciones masivas + individuales. Lote unificado: no se divide la card aunque haya estados mixtos. Indicador de progreso ("2/5 finalizadas"). Ordenado por prioridad.
 - [x] **Supabase Storage:** Bucket `imagenes` (público, `UPDATE storage.buckets SET public = true`). Policies de INSERT/UPDATE/SELECT/DELETE habilitadas. Cache-buster (`?t=timestamp`) en URLs para evitar imágenes cacheadas.
+- [x] **Libro Mayor (`/libro-mayor`):** Vista consolidada cross-lote de todos los pedidos. Reemplaza la doble entrada de planillas (ya no hace falta registrar el pago en el lote Y en el libro mayor por separado — la DB es única fuente de verdad). Incluye: 4 KPI cards (Total pedidos, Facturado, Cobrado, Saldo pendiente), filtros por Institución + Grado + Prenda + Estado + Estado de cobro (con deuda / pagado completo) + búsqueda por nombre/DNI, columna Institución/Grado en tabla, barra de progreso de pago con saldo pendiente en amarillo, botón **+ Pago** por fila (abre modal para registrar pago con monto + método sin salir de la vista), timeline expandible de estados por pedido.
+- [x] **Talonario y comprobante en pagos:** Cada pago registrado (tanto en Pagos/Cuotas como en el modal rápido del Libro Mayor) permite ingresar el **N° de talonario** físico. Si el método es Transferencia, se habilita un botón para **adjuntar el comprobante** (imagen o PDF), que se sube a Supabase Storage en `comprobantes/{pedidoId}_{timestamp}.ext`. El talonario y el link "Ver comprobante" aparecen en cada fila del historial de movimientos (tanto en el modal de Pagos como en el historial colapsable de las cards de búsqueda).
 
 ### ⏳ Pendiente (Por hacer)
 - [ ] **Notificaciones WhatsApp:** Avisar al cliente cuando su prenda cambie de estado (integración API).

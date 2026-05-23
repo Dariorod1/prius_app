@@ -59,8 +59,14 @@ CREATE TABLE public.pagos_historial (
     monto NUMERIC NOT NULL,
     metodo_pago TEXT NOT NULL,
     empleado_username TEXT,
+    talonario TEXT,              -- Número de talonario físico del comprobante
+    comprobante_url TEXT,        -- URL del comprobante de transferencia (Supabase Storage bucket 'imagenes', path 'comprobantes/')
     fecha TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Agregar columnas de talonario y comprobante (si la tabla ya existía)
+ALTER TABLE public.pagos_historial ADD COLUMN IF NOT EXISTS talonario TEXT;
+ALTER TABLE public.pagos_historial ADD COLUMN IF NOT EXISTS comprobante_url TEXT;
 
 -- 7. Log de Cambios de Estado (trazabilidad de producción)
 CREATE TABLE public.pedido_estado_log (
@@ -95,9 +101,15 @@ CREATE TABLE public.lotes (
     imagen_chomba_url TEXT,
     imagen_campera_url TEXT,
     prioridad TEXT DEFAULT 'ninguna', -- ninguna, baja, media, alta, urgente
+    precio_chomba NUMERIC,            -- Precio base de chomba para el lote
+    precio_campera NUMERIC,           -- Precio base de campera para el lote
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(institucion_id, grado)
 );
+
+-- Agregar columnas de precio al lote (si la tabla ya existía)
+ALTER TABLE public.lotes ADD COLUMN IF NOT EXISTS precio_chomba NUMERIC;
+ALTER TABLE public.lotes ADD COLUMN IF NOT EXISTS precio_campera NUMERIC;
 
 -- 9. Columna grado en pedidos (vincula pedidos a un lote)
 ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS grado TEXT;

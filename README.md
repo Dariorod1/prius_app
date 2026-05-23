@@ -1,16 +1,16 @@
-# React + Vite
+# Prius App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema de gestión interna para empresas del rubro textil/indumentaria.
 
-Currently, two official plugins are available:
+Permite administrar el ciclo completo de producción por pedido: desde la recepción del cliente hasta la entrega del producto terminado, pasando por todas las etapas intermedias del proceso productivo.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Tecnologías
 
-## React Compiler
+- React + Vite
+- Supabase (base de datos y almacenamiento)
+- Desplegado en Vercel
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Estado
 
-## Expanding the ESLint configuration
+En desarrollo activo.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.

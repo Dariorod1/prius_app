@@ -116,6 +116,8 @@ const RecepcionLote = () => {
       setImagenChomba(loteData.imagen_chomba_url || '');
       setImagenCampera(loteData.imagen_campera_url || '');
       setPrioridad(loteData.prioridad || 'ninguna');
+      setPrecioLoteChomba(loteData.precio_chomba != null ? String(loteData.precio_chomba) : '');
+      setPrecioLoteCampera(loteData.precio_campera != null ? String(loteData.precio_campera) : '');
     } else {
       // Crear lote nuevo
       const { data: nuevoLote } = await supabase
@@ -139,8 +141,12 @@ const RecepcionLote = () => {
     }
     setLoading(false);
     setLoteActivo(true);
-    setForm(prev => ({ ...prev, chomba_precio: precioLoteChomba, campera_precio: precioLoteCampera }));
-  }, [institucionId, grado, precioLoteChomba, precioLoteCampera]);
+  }, [institucionId, grado]);
+
+  const guardarPrecioLote = async (campo, valor) => {
+    if (!loteId) return;
+    await supabase.from('lotes').update({ [campo]: valor !== '' ? Number(valor) : null }).eq('id', loteId);
+  };
 
   const resetForm = () => {
     setForm({
@@ -701,11 +707,11 @@ const RecepcionLote = () => {
         <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>Precios:</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Chomba $</label>
-          <input type="number" className="form-control" placeholder="0" value={precioLoteChomba} onChange={(e) => { setPrecioLoteChomba(e.target.value); setForm(prev => ({ ...prev, chomba_precio: e.target.value })); }} style={{ width: '100px' }} />
+          <input type="number" className="form-control" placeholder="0" value={precioLoteChomba} onChange={(e) => { setPrecioLoteChomba(e.target.value); setForm(prev => ({ ...prev, chomba_precio: e.target.value })); }} onBlur={(e) => guardarPrecioLote('precio_chomba', e.target.value)} style={{ width: '100px' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Campera $</label>
-          <input type="number" className="form-control" placeholder="0" value={precioLoteCampera} onChange={(e) => { setPrecioLoteCampera(e.target.value); setForm(prev => ({ ...prev, campera_precio: e.target.value })); }} style={{ width: '100px' }} />
+          <input type="number" className="form-control" placeholder="0" value={precioLoteCampera} onChange={(e) => { setPrecioLoteCampera(e.target.value); setForm(prev => ({ ...prev, campera_precio: e.target.value })); }} onBlur={(e) => guardarPrecioLote('precio_campera', e.target.value)} style={{ width: '100px' }} />
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Prioridad:</label>
@@ -732,13 +738,13 @@ const RecepcionLote = () => {
           </div>
           {imagenChomba ? (
             <div style={{ position: 'relative' }}>
-              <img src={imagenChomba} alt="Chomba" style={{ width: '100%', height: '180px', objectFit: 'contain', borderRadius: '8px', background: 'var(--bg-dark)', display: 'block' }} />
+              <img src={imagenChomba} alt="Chomba" style={{ width: '100%', height: '117px', objectFit: 'contain', borderRadius: '8px', background: 'var(--bg-dark)', display: 'block' }} />
               <button onClick={() => setModalEliminar('chomba')} title="Eliminar imagen" style={{ position: 'absolute', top: '6px', right: '6px', background: 'rgba(239,68,68,0.9)', border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Trash2 size={14} color="white" />
               </button>
             </div>
           ) : (
-            <div style={{ width: '100%', height: '180px', borderRadius: '8px', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ width: '100%', height: '117px', borderRadius: '8px', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px' }}>
               <Image size={32} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Sin imagen</span>
             </div>
@@ -755,13 +761,13 @@ const RecepcionLote = () => {
           </div>
           {imagenCampera ? (
             <div style={{ position: 'relative' }}>
-              <img src={imagenCampera} alt="Campera" style={{ width: '100%', height: '180px', objectFit: 'contain', borderRadius: '8px', background: 'var(--bg-dark)', display: 'block' }} />
+              <img src={imagenCampera} alt="Campera" style={{ width: '100%', height: '117px', objectFit: 'contain', borderRadius: '8px', background: 'var(--bg-dark)', display: 'block' }} />
               <button onClick={() => setModalEliminar('campera')} title="Eliminar imagen" style={{ position: 'absolute', top: '6px', right: '6px', background: 'rgba(239,68,68,0.9)', border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Trash2 size={14} color="white" />
               </button>
             </div>
           ) : (
-            <div style={{ width: '100%', height: '180px', borderRadius: '8px', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ width: '100%', height: '117px', borderRadius: '8px', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px' }}>
               <Image size={32} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Sin imagen</span>
             </div>

@@ -56,6 +56,7 @@ const Layout = ({ user, onLogout }) => {
             </span>
             <button
               onClick={() => { sessionStorage.setItem('iosBannerDismissed', '1'); setShowIOSBanner(false); }}
+              aria-label="Cerrar banner de instalación"
               style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', flexShrink: 0, minHeight: '32px' }}
             >
               ✕
@@ -66,8 +67,9 @@ const Layout = ({ user, onLogout }) => {
           <button 
             className="menu-toggle-btn" 
             onClick={() => setIsSidebarOpen(true)}
+            aria-label="Abrir menú"
           >
-            <Menu size={28} />
+            <Menu size={28} aria-hidden="true" />
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginLeft: 'auto' }}>
@@ -76,11 +78,11 @@ const Layout = ({ user, onLogout }) => {
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{user.rol.toUpperCase()}</div>
             </div>
             <img src="/img/prius_logo.jpg" alt="Avatar" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '2px solid var(--primary)', objectFit: 'cover' }} />
-            <button onClick={toggleTheme} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center' }}>
-              {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
+            <button onClick={toggleTheme} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '6px', transition: 'color var(--dur-fast) ease' }}>
+              {theme === 'dark' ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
             </button>
-            <button onClick={onLogout} title="Cerrar Sesión" style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '5px' }}>
-              <LogOut size={20} />
+            <button onClick={onLogout} title="Cerrar Sesión" aria-label="Cerrar Sesión" style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '6px', borderRadius: '6px' }}>
+              <LogOut size={20} aria-hidden="true" />
             </button>
           </div>
         </header>

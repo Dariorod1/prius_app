@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Search, DollarSign, Clock, User, CreditCard, ChevronDown, ChevronUp, PackageCheck, AlertTriangle } from 'lucide-react';
+import { Search, DollarSign, Clock, User, CreditCard, ChevronDown, ChevronUp, PackageCheck, AlertTriangle, Paperclip, ExternalLink, Hash } from 'lucide-react';
 
 const Pagos = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,6 +17,12 @@ const Pagos = () => {
   // Payment Form State
   const [montoPagar, setMontoPagar] = useState('');
   const [metodoPago, setMetodoPago] = useState('Efectivo');
+  const [talonario, setTalonario] = useState('');
+  const [comprobanteFile, setComprobanteFile] = useState(null);
+  const [uploadingComprobante, setUploadingComprobante] = useState(false);
+  const [uploadingComprobanteId, setUploadingComprobanteId] = useState(null);
+  const [historialVisible, setHistorialVisible] = useState(false);
+  const [pagoError, setPagoError] = useState(null);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const [mensaje, setMensaje] = useState(null);
 
@@ -130,6 +136,10 @@ const Pagos = () => {
     setSelectedPedido(pedido);
     setMontoPagar('');
     setMetodoPago('Efectivo');
+    setTalonario('');
+    setComprobanteFile(null);
+    setHistorialVisible(false);
+    setPagoError(null);
     setLoadingModal(true);
     
     const { data, error } = await supabase
@@ -148,8 +158,14 @@ const Pagos = () => {
 
   const handlePagar = async (e) => {
     e.preventDefault();
+    setPagoError(null);
     const monto = parseFloat(montoPagar);
     if (!monto || monto <= 0) return;
+    const saldoMax = parseFloat(selectedPedido.precio_total) - parseFloat(selectedPedido.monto_pagado);
+    if (monto > saldoMax) {
+      setPagoError('El monto ingresado ($' + monto.toFixed(2) + ') supera el saldo pendiente de $' + saldoMax.toFixed(2) + '.');
+      return;
+    }
 
     setProcesandoPago(true);
 
@@ -157,17 +173,33 @@ const Pagos = () => {
     const faltante = parseFloat(selectedPedido.precio_total) - nuevoMontoPagado;
 
     try {
-      // 1. Insertar el historial
+      // 1. Subir comprobante si hay archivo
+      let comprobanteUrl = null;
+      if (comprobanteFile) {
+        setUploadingComprobante(true);
+        const ext = comprobanteFile.name.split('.').pop();
+        const path = 'comprobantes/' + selectedPedido.id + '_' + Date.now() + '.' + ext;
+        const { error: upErr } = await supabase.storage.from('imagenes').upload(path, comprobanteFile, { contentType: comprobanteFile.type, upsert: true });
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from('imagenes').getPublicUrl(path);
+          comprobanteUrl = urlData.publicUrl;
+        }
+        setUploadingComprobante(false);
+      }
+
+      // 2. Insertar el historial
       const { error: insertError } = await supabase.from('pagos_historial').insert([{
         pedido_id: selectedPedido.id,
         monto: monto,
         metodo_pago: metodoPago,
-        empleado_username: currentUser?.username || 'Desconocido'
+        empleado_username: currentUser?.username || 'Desconocido',
+        talonario: talonario.trim() || null,
+        comprobante_url: comprobanteUrl,
       }]);
 
       if (insertError) throw insertError;
 
-      // 2. Actualizar el pedido (cambiar estado si estaba pendiente y llega al 50%)
+      // 3. Actualizar el pedido (cambiar estado si estaba pendiente y llega al 50%)
       let nuevoEstado = selectedPedido.estado;
       const porcentajePagado = (nuevoMontoPagado / parseFloat(selectedPedido.precio_total)) * 100;
       const pasaAAutorizado = nuevoEstado === 'Pendiente' && porcentajePagado >= 50;
@@ -182,7 +214,7 @@ const Pagos = () => {
 
       if (updateError) throw updateError;
 
-      // 3. Loguear el cambio a Autorizado para que aparezca en el timeline
+      // 4. Loguear el cambio a Autorizado para que aparezca en el timeline
       if (pasaAAutorizado) {
         await supabase.from('pedido_estado_log').insert([{
           pedido_id: selectedPedido.id,
@@ -205,6 +237,27 @@ const Pagos = () => {
 
   const toggleCard = (id) => {
     setExpandedCards(prev => prev.includes(id) ? prev.filter(cId => cId !== id) : [...prev, id]);
+  };
+
+  const adjuntarComprobanteAPago = async (pagoId, pedidoId, file) => {
+    if (!file) return;
+    setUploadingComprobanteId(pagoId);
+    const ext = file.name.split('.').pop();
+    const path = 'comprobantes/' + pedidoId + '_' + pagoId + '_' + Date.now() + '.' + ext;
+    const { error: upErr } = await supabase.storage.from('imagenes').upload(path, file, { contentType: file.type, upsert: true });
+    if (!upErr) {
+      const { data: urlData } = supabase.storage.from('imagenes').getPublicUrl(path);
+      const url = urlData.publicUrl;
+      await supabase.from('pagos_historial').update({ comprobante_url: url }).eq('id', pagoId);
+      // Actualizar estado local del modal
+      setHistorialPagos(prev => prev.map(p => p.id === pagoId ? { ...p, comprobante_url: url } : p));
+      // Actualizar estado local de las cards inline
+      setPedidosEncontrados(prev => prev.map(p => p.id === pedidoId
+        ? { ...p, pagos_historial: (p.pagos_historial || []).map(h => h.id === pagoId ? { ...h, comprobante_url: url } : h) }
+        : p
+      ));
+    }
+    setUploadingComprobanteId(null);
   };
 
   const confirmarForzarAutorizacion = (pedidoId) => {
@@ -531,22 +584,39 @@ const Pagos = () => {
                             const esExcepcion = pago.metodo_pago === 'AUTORIZACIÓN EXCEPCIONAL';
                             return (
                               <div key={pago.id} style={{ 
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', 
                                 background: esExcepcion ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255,255,255,0.02)', 
                                 padding: '0.5rem 0.8rem', borderRadius: '4px', fontSize: '0.85rem',
                                 border: esExcepcion ? '1px solid rgba(239, 68, 68, 0.3)' : 'none'
                               }}>
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                  <span style={{ fontWeight: 'bold', color: esExcepcion ? 'var(--danger)' : 'var(--accent)' }}>
-                                    {esExcepcion ? <><AlertTriangle size={12} style={{ verticalAlign: 'middle' }} /> EXCEPCIÓN</> : `+ $${pago.monto}`}
-                                  </span>
-                                  {!esExcepcion && (
-                                    <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <CreditCard size={12} /> {pago.metodo_pago}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 'bold', color: esExcepcion ? 'var(--danger)' : 'var(--accent)' }}>
+                                      {esExcepcion ? <><AlertTriangle size={12} style={{ verticalAlign: 'middle' }} /> EXCEPCIÓN</> : '+ $' + pago.monto}
+                                    </span>
+                                    {!esExcepcion && (
+                                      <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <CreditCard size={12} /> {pago.metodo_pago}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {pago.talonario && (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      <Hash size={10} /> Tal. <strong style={{ color: 'var(--text-main)' }}>{pago.talonario}</strong>
                                     </span>
                                   )}
+                                  {pago.comprobante_url ? (
+                                    <a href={pago.comprobante_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'none' }}>
+                                      <ExternalLink size={10} /> Ver comprobante
+                                    </a>
+                                  ) : !esExcepcion && pago.metodo_pago === 'Transferencia' && (
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.75rem', color: uploadingComprobanteId === pago.id ? 'var(--text-muted)' : 'var(--primary)', cursor: 'pointer', textDecoration: 'underline dotted' }}>
+                                      <Paperclip size={10} /> {uploadingComprobanteId === pago.id ? 'Subiendo...' : 'Adjuntar comprobante'}
+                                      <input type="file" accept="image/*,.pdf" hidden onChange={(e) => adjuntarComprobanteAPago(pago.id, pedido.id, e.target.files[0])} />
+                                    </label>
+                                  )}
                                 </div>
-                                <div style={{ display: 'flex', gap: '1rem', color: esExcepcion ? 'var(--danger)' : 'var(--text-muted)', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '0.75rem', color: esExcepcion ? 'var(--danger)' : 'var(--text-muted)', alignItems: 'center', flexShrink: 0, marginLeft: '0.5rem' }}>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} /> {new Date(pago.fecha).toLocaleDateString()} {new Date(pago.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}><User size={12} /> {pago.empleado_username}</span>
                                 </div>
@@ -577,11 +647,11 @@ const Pagos = () => {
             maxHeight: '90vh', overflowY: 'auto'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ color: 'white', margin: 0 }}>Estado de Cuenta</h3>
+              <h3 style={{ color: 'var(--text-main)', margin: 0 }}>Estado de Cuenta</h3>
               <button className="btn" style={{ padding: '0.5rem', background: 'transparent', color: 'var(--text-muted)' }} onClick={() => setSelectedPedido(null)}>Cerrar</button>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+            <div style={{ background: 'var(--bg-dark)', padding: '1.5rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ color: 'var(--text-muted)' }}>Precio Total:</span>
                 <span style={{ fontWeight: 'bold' }}>${selectedPedido.precio_total}</span>
@@ -591,52 +661,16 @@ const Pagos = () => {
                 <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>${selectedPedido.monto_pagado}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-                <span style={{ color: 'white' }}>Saldo Pendiente:</span>
+                <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>Saldo Pendiente:</span>
                 <span style={{ color: 'var(--danger)', fontWeight: 'bold', fontSize: '1.2rem' }}>
                   ${(parseFloat(selectedPedido.precio_total) - parseFloat(selectedPedido.monto_pagado)).toFixed(2)}
                 </span>
               </div>
             </div>
 
-            {/* Historial de Pagos */}
-            <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>Historial de Movimientos</h4>
-            {loadingModal ? (
-              <p style={{ textAlign: 'center', padding: '1rem' }}>Cargando recibos...</p>
-            ) : historialPagos.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '1rem', background: 'var(--bg-sidebar)', borderRadius: '6px', color: 'var(--text-muted)' }}>No hay pagos registrados para este pedido.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem' }}>
-                {historialPagos.map(pago => {
-                  const esExcepcion = pago.metodo_pago === 'AUTORIZACIÓN EXCEPCIONAL';
-                  return (
-                    <div key={pago.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: esExcepcion ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-sidebar)', padding: '1rem', borderRadius: '6px', border: esExcepcion ? '1px solid rgba(239, 68, 68, 0.3)' : 'none' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold', color: esExcepcion ? 'var(--danger)' : 'var(--accent)' }}>
-                          {esExcepcion ? <><AlertTriangle size={16} style={{ verticalAlign: 'middle' }} /> AUTORIZACIÓN MANUAL (SIN PAGO)</> : <><DollarSign size={16} /> ${pago.monto}</>}
-                        </div>
-                        {!esExcepcion && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            <CreditCard size={12} /> {pago.metodo_pago}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ textAlign: 'right', fontSize: '0.8rem', color: esExcepcion ? 'var(--danger)' : 'var(--text-muted)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', marginBottom: '4px' }}>
-                          <Clock size={12} /> {new Date(pago.fecha).toLocaleString()}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', fontWeight: 'bold' }}>
-                          <User size={12} /> Autorizado por: {pago.empleado_username}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Formulario de Nuevo Pago */}
+            {/* Formulario de Nuevo Pago — siempre arriba */}
             {(parseFloat(selectedPedido.precio_total) - parseFloat(selectedPedido.monto_pagado)) > 0 && (
-              <form onSubmit={handlePagar} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+              <form onSubmit={handlePagar} style={{ marginBottom: '1.5rem' }}>
                 <h4 style={{ marginBottom: '1rem' }}>Registrar Nuevo Pago</h4>
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: '150px' }}>
@@ -646,10 +680,16 @@ const Pagos = () => {
                       className="form-control" 
                       required 
                       min="1" 
-                      max={(parseFloat(selectedPedido.precio_total) - parseFloat(selectedPedido.monto_pagado))}
                       value={montoPagar} 
-                      onChange={e => setMontoPagar(e.target.value)} 
+                      onChange={e => { setMontoPagar(e.target.value); if (pagoError) setPagoError(null); }} 
+                      style={pagoError ? { borderColor: 'var(--danger)', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)' } : {}}
                     />
+                    {pagoError && (
+                      <div style={{ marginTop: '6px', display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '8px 10px', borderRadius: '6px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                        <AlertTriangle size={14} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--danger)', lineHeight: '1.4' }}>{pagoError}</span>
+                      </div>
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: '150px' }}>
                     <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Método de Pago</label>
@@ -660,11 +700,105 @@ const Pagos = () => {
                     </select>
                   </div>
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1.5rem', height: '45px' }} disabled={procesandoPago}>
-                  {procesandoPago ? 'Procesando...' : `Confirmar Pago de $${montoPagar || '0'}`}
+
+                {/* Talonario */}
+                <div style={{ marginTop: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                    <Hash size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />N° Talonario
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Ej: 00234"
+                    value={talonario}
+                    onChange={e => setTalonario(e.target.value)}
+                  />
+                </div>
+
+                {/* Comprobante (solo transferencia) */}
+                {metodoPago === 'Transferencia' && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                      <Paperclip size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                      Comprobante de transferencia <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>(opcional)</span>
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px dashed var(--border-color)', cursor: 'pointer', fontSize: '0.85rem', color: comprobanteFile ? 'var(--accent)' : 'var(--text-muted)', background: comprobanteFile ? 'rgba(16,185,129,0.06)' : 'transparent', width: '100%', boxSizing: 'border-box' }}>
+                      <Paperclip size={14} />
+                      {comprobanteFile ? comprobanteFile.name : 'Seleccionar imagen o PDF'}
+                      <input type="file" accept="image/*,.pdf" hidden onChange={(e) => setComprobanteFile(e.target.files[0] || null)} />
+                    </label>
+                  </div>
+                )}
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1.5rem', height: '45px' }} disabled={procesandoPago || uploadingComprobante}>
+                  {uploadingComprobante ? 'Subiendo comprobante...' : procesandoPago ? 'Procesando...' : 'Confirmar Pago de $' + (montoPagar || '0')}
                 </button>
               </form>
             )}
+
+            {/* Historial de Pagos — colapsable, cerrado por defecto */}
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <button
+                onClick={() => setHistorialVisible(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem 0', marginBottom: historialVisible ? '1rem' : 0 }}
+              >
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Historial de movimientos {historialPagos.length > 0 && '(' + historialPagos.length + ')'}
+                </span>
+                {historialVisible ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+              </button>
+
+              {historialVisible && (
+                loadingModal ? (
+                  <p style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>Cargando recibos...</p>
+                ) : historialPagos.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '1rem', background: 'var(--bg-sidebar)', borderRadius: '6px', color: 'var(--text-muted)' }}>No hay pagos registrados para este pedido.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {historialPagos.map(pago => {
+                      const esExcepcion = pago.metodo_pago === 'AUTORIZACIÓN EXCEPCIONAL';
+                      return (
+                        <div key={pago.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: esExcepcion ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-sidebar)', padding: '1rem', borderRadius: '6px', border: esExcepcion ? '1px solid rgba(239, 68, 68, 0.3)' : 'none' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold', color: esExcepcion ? 'var(--danger)' : 'var(--accent)' }}>
+                              {esExcepcion ? <><AlertTriangle size={16} style={{ verticalAlign: 'middle' }} /> AUTORIZACIÓN MANUAL (SIN PAGO)</> : <><DollarSign size={16} /> ${pago.monto}</>}
+                            </div>
+                            {!esExcepcion && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                <CreditCard size={12} /> {pago.metodo_pago}
+                              </div>
+                            )}
+                            {pago.talonario && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                <Hash size={11} /> Tal. <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{pago.talonario}</span>
+                              </div>
+                            )}
+                            {pago.comprobante_url ? (
+                              <a href={pago.comprobante_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: 'var(--primary)', marginTop: '4px', textDecoration: 'none' }}>
+                                <ExternalLink size={11} /> Ver comprobante
+                              </a>
+                            ) : !esExcepcion && pago.metodo_pago === 'Transferencia' && (
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: uploadingComprobanteId === pago.id ? 'var(--text-muted)' : 'var(--primary)', marginTop: '4px', cursor: 'pointer', textDecoration: 'underline dotted' }}>
+                                <Paperclip size={11} /> {uploadingComprobanteId === pago.id ? 'Subiendo...' : 'Adjuntar comprobante'}
+                                <input type="file" accept="image/*,.pdf" hidden onChange={(e) => adjuntarComprobanteAPago(pago.id, selectedPedido?.id, e.target.files[0])} />
+                              </label>
+                            )}
+                          </div>
+                          <div style={{ textAlign: 'right', fontSize: '0.8rem', color: esExcepcion ? 'var(--danger)' : 'var(--text-muted)', flexShrink: 0, marginLeft: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', marginBottom: '4px' }}>
+                              <Clock size={12} /> {new Date(pago.fecha).toLocaleString()}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', fontWeight: 'bold' }}>
+                              <User size={12} /> {pago.empleado_username}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </div>
       )}
