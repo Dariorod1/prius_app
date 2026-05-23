@@ -35,7 +35,7 @@ const Login = ({ onLogin }) => {
     // Guardamos la sesión con expiración de 20 min
     const sessionData = {
       ...data,
-      expiresAt: Date.now() + 20 * 60 * 1000
+      expiresAt: Date.now() + 8 * 60 * 60 * 1000
     };
     
     localStorage.setItem('priusUser', JSON.stringify(sessionData));

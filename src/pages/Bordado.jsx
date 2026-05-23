@@ -70,7 +70,6 @@ const Bordado = () => {
           table: 'pedidos',
         },
         (payload) => {
-          console.log('Realtime Bordado:', payload);
           if (skipRealtimeRef.current) { skipRealtimeRef.current = false; return; }
           cargarPedidos();
         }

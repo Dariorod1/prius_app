@@ -554,13 +554,13 @@ function App() {
     window.addEventListener('click', handleActivity);
     window.addEventListener('touchstart', handleActivity);
 
-    // Revisar inactividad cada minuto
+    // Revisar inactividad cada 5 minutos
     const interval = setInterval(() => {
       const lastActivity = parseInt(localStorage.getItem('priusUserActivity') || Date.now());
-      if (Date.now() - lastActivity > 20 * 60 * 1000) { // 20 minutos de inactividad
+      if (Date.now() - lastActivity > 8 * 60 * 60 * 1000) { // 8 horas de inactividad
         handleLogout();
       }
-    }, 60000);
+    }, 5 * 60 * 1000);
 
     return () => {
       window.removeEventListener('mousemove', handleActivity);
