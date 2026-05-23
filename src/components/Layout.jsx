@@ -87,7 +87,7 @@ const Layout = ({ user, onLogout }) => {
           </div>
         </header>
         
-        <main className="page-content">
+        <main className="page-content" style={{ flex: 1 }}>
           <Outlet />
         </main>
 
