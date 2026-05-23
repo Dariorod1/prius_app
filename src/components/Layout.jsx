@@ -90,6 +90,10 @@ const Layout = ({ user, onLogout }) => {
         <main className="page-content">
           <Outlet />
         </main>
+
+        <footer style={{ textAlign: 'center', padding: '0.6rem', fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.45, borderTop: '1px solid var(--border-color)', userSelect: 'none', letterSpacing: '0.03em' }}>
+          Desarrollado por DRS para PRIUS &mdash; &copy; 2026 Todos los derechos reservados
+        </footer>
       </div>
     </div>
   );
