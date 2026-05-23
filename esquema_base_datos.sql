@@ -166,3 +166,23 @@ INSERT INTO public.pedidos (cliente_dni, institucion_id, tipo_prenda, talle, nom
     ('40987654', '11111111-1111-1111-1111-111111111111', 'Campera Egresados', 'M', 'MERY', '', 35000, 10000, 'Pendiente'),
     ('28765432', '22222222-2222-2222-2222-222222222222', 'Chomba Tradicional', 'XL', null, '', 12000, 12000, 'Autorizado'),
     ('35123456', '33333333-3333-3333-3333-333333333333', 'Campera Polar', 'L', 'TORRES', 'Puño más ajustado', 40000, 40000, 'Confeccionado');
+
+-- ==========================================
+-- RESET DE DATOS OPERATIVOS
+-- (Ejecutar en Supabase Dashboard → SQL Editor)
+-- Usar cuando se quiera empezar de cero:
+--   - Borra todos los pedidos, lotes, pagos y logs
+--   - Conserva: instituciones (escuelas), empleados (usuarios)
+--   - Opcional: también borrar clientes
+-- ==========================================
+
+-- OPCIÓN A: Conservar clientes
+-- TRUNCATE public.pagos_historial, public.pedido_estado_log RESTART IDENTITY CASCADE;
+-- DELETE FROM public.pedidos;
+-- DELETE FROM public.lotes;
+
+-- OPCIÓN B: Borrar todo incluyendo clientes (reset total de producción)
+-- TRUNCATE public.pagos_historial, public.pedido_estado_log RESTART IDENTITY CASCADE;
+-- DELETE FROM public.pedidos;
+-- DELETE FROM public.lotes;
+-- DELETE FROM public.clientes;

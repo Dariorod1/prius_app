@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Scissors, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, ArrowLeft, Image } from 'lucide-react';
+import { Scissors, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
 
 const ESTADOS_COLA = ['Autorizado'];
 const ESTADOS_EN_PROGRESO = ['En Corte'];
@@ -32,6 +32,8 @@ const Corte = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState(0);
   const skipRealtimeRef = useRef(false);
+  const draggedGrupoRef = useRef(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -186,18 +188,45 @@ const Corte = () => {
     });
   })();
 
-  // =========== DETALLE DE LOTE ===========
+  // =========== DETALLE DE LOTE (mobile-first) ===========
   if (loteAbierto) {
     const { grupo } = loteAbierto;
-    // Re-fetch pedidos actuales del grupo
     const pedidosDelGrupo = grupo.grado
       ? pedidosTodos.filter(p => p.institucion_id === grupo.pedidos[0]?.institucion_id && p.grado === grupo.grado && p.tipo_prenda === grupo.tipo_prenda)
       : grupo.pedidos;
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
 
+    const porCortar   = pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado));
+    const enCorte     = pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado));
+    const finalizados = pedidosDelGrupo.filter(p => ESTADOS_TERMINADO.includes(p.estado));
+    const total       = pedidosDelGrupo.length;
+    const pct         = total > 0 ? Math.round((finalizados.length / total) * 100) : 0;
+
+    // Resumen de talles (sin nombres)
+    const talleOrden = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2', '4', '6', '8', '10', '12', '14', '16'];
+    const sortTalle  = (arr) => arr.sort((a, b) => {
+      const ia = talleOrden.indexOf(a[0]); const ib = talleOrden.indexOf(b[0]);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+    const normales   = pedidosDelGrupo.filter(p => !p.observaciones);
+    const excepciones = pedidosDelGrupo.filter(p => !!p.observaciones);
+    const conteoNormal = {};
+    normales.forEach(p => { conteoNormal[p.talle] = (conteoNormal[p.talle] || 0) + 1; });
+    const normalesOrdenados = sortTalle(Object.entries(conteoNormal));
+    const conteoExcep = {};
+    excepciones.forEach(p => {
+      const key = p.talle + '|||' + p.observaciones;
+      if (!conteoExcep[key]) conteoExcep[key] = { talle: p.talle, obs: p.observaciones, cant: 0 };
+      conteoExcep[key].cant++;
+    });
+    const excepcionesOrdenadas = Object.values(conteoExcep).sort((a, b) => {
+      const ia = talleOrden.indexOf(a.talle); const ib = talleOrden.indexOf(b.talle);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+
     return (
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '520px', margin: '0 auto', paddingBottom: '2rem' }}>
         {mensaje && (
           <div style={{
             position: 'fixed', bottom: '20px', right: '20px', padding: '1rem 2rem',
@@ -208,194 +237,204 @@ const Corte = () => {
           </div>
         )}
 
+        {/* Volver */}
         <button
           onClick={() => setLoteAbierto(null)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', marginBottom: '1rem', fontSize: '0.9rem', padding: 0 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginBottom: '1rem', fontSize: '0.85rem', padding: 0 }}
         >
-          <ArrowLeft size={18} /> Volver al Kanban
+          <ArrowLeft size={16} /> Volver
         </button>
 
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          {imagen ? (
-            <img src={imagen} alt={grupo.tipo_prenda} style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '12px', border: '1px solid var(--border-color)' }} />
-          ) : (
-            <div style={{ width: '120px', height: '120px', borderRadius: '12px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Image size={40} style={{ color: 'var(--text-muted)' }} />
-            </div>
-          )}
-          <div>
-            <h1 style={{ color: 'var(--primary)', margin: '0 0 0.25rem 0' }}>{grupo.tipo_prenda}</h1>
-            <p style={{ color: 'var(--text-main)', margin: '0 0 0.25rem 0', fontSize: '1.1rem' }}>{grupo.institucion}</p>
-            <p style={{ color: 'var(--text-muted)', margin: 0 }}>{grupo.grado} — {pedidosDelGrupo.length} prendas</p>
+        {/* Imagen grande */}
+        {imagen ? (
+          <div style={{ width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', marginBottom: '1.25rem', background: 'var(--bg-dark)', maxHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={imagen} alt={grupo.tipo_prenda} style={{ width: '100%', maxHeight: '260px', objectFit: 'contain' }} />
+          </div>
+        ) : (
+          <div style={{ width: '100%', height: '180px', borderRadius: '16px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
+            <Scissors size={52} style={{ color: 'var(--text-muted)', opacity: 0.3 }} />
+          </div>
+        )}
+
+        {/* Header info */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '4px' }}>
+            <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: '800' }}>{grupo.tipo_prenda}</h2>
             {loteInfo?.prioridad && loteInfo.prioridad !== 'ninguna' && (
-              <span style={{ display: 'inline-block', marginTop: '0.5rem', padding: '3px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: PRIORIDAD_COLORS[loteInfo.prioridad] + '25', color: PRIORIDAD_COLORS[loteInfo.prioridad] }}>
+              <span style={{ padding: '3px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', background: PRIORIDAD_COLORS[loteInfo.prioridad] + '25', color: PRIORIDAD_COLORS[loteInfo.prioridad] }}>
                 {PRIORIDAD_LABELS[loteInfo.prioridad]}
               </span>
             )}
           </div>
+          <div style={{ fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: '600' }}>{grupo.institucion}</div>
+          {grupo.grado && <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '2px' }}>{grupo.grado}</div>}
+
+          {/* Barra de progreso */}
+          <div style={{ marginTop: '0.9rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '5px' }}>
+              <span>{finalizados.length} de {total} prendas cortadas</span>
+              <span style={{ fontWeight: '600', color: pct === 100 ? '#10B981' : 'var(--text-muted)' }}>{pct}%</span>
+            </div>
+            <div style={{ height: '7px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px' }}>
+              <div style={{ width: pct + '%', height: '100%', background: pct === 100 ? '#10B981' : 'var(--primary)', borderRadius: '4px', transition: 'width 0.4s ease' }} />
+            </div>
+          </div>
         </div>
 
-        {/* Acciones masivas */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          {pedidosDelGrupo.some(p => ESTADOS_COLA.includes(p.estado)) && (
-            <button onClick={() => cambiarEstadoLote(pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado)), 'En Corte')} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--primary)', color: 'white', border: 'none', padding: '0.7rem 1.2rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-              <PlayCircle size={16} /> Iniciar Corte ({pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado)).length})
-            </button>
+        {/* Talles a cortar */}
+        <div style={{ padding: '1.1rem', background: 'var(--bg-dark)', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem' }}>
+            Talles a cortar
+          </div>
+          {normalesOrdenados.length > 0 && (
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              {normalesOrdenados.map(([talle, cant]) => (
+                <div key={talle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.65rem 1.1rem', borderRadius: '10px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', minWidth: '62px' }}>
+                  <span style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--accent)', lineHeight: 1 }}>{cant}</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-main)', marginTop: '3px' }}>{talle}</span>
+                </div>
+              ))}
+            </div>
           )}
-          {pedidosDelGrupo.some(p => ESTADOS_EN_PROGRESO.includes(p.estado)) && (
+          {excepcionesOrdenadas.length > 0 && (
             <>
-              <button onClick={() => cambiarEstadoLote(pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado)), 'Corte Finalizado')} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10B981', color: 'white', border: 'none', padding: '0.7rem 1.2rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                <CheckCircle size={16} /> Finalizar ({pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado)).length})
-              </button>
-              <button onClick={() => cambiarEstadoLote(pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado)), 'Autorizado')} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-sidebar)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '0.7rem 1.2rem', borderRadius: '8px', cursor: 'pointer' }}>
-                <RefreshCw size={16} /> Devolver a Cola
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '1rem 0 0.6rem' }}>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+                <span style={{ fontSize: '0.72rem', color: '#FACC15', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                  <AlertTriangle size={12} /> Con excepción
+                </span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {excepcionesOrdenadas.map((e) => (
+                  <div key={e.talle + e.obs} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.6rem 0.9rem', borderRadius: '10px', background: 'rgba(250,204,21,0.07)', border: '1px solid rgba(250,204,21,0.3)', minWidth: '62px' }}>
+                    <span style={{ fontSize: '1.5rem', fontWeight: '800', color: '#FACC15', lineHeight: 1 }}>{e.cant}</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-main)', marginTop: '3px' }}>{e.talle}</span>
+                    <span style={{ fontSize: '0.68rem', color: '#FACC15', marginTop: '4px', textAlign: 'center', maxWidth: '80px', lineHeight: 1.3 }}>{e.obs}</span>
+                  </div>
+                ))}
+              </div>
             </>
           )}
-          {pedidosDelGrupo.every(p => ESTADOS_TERMINADO.includes(p.estado)) && (
-            <button onClick={() => cambiarEstadoLote(pedidosDelGrupo, 'En Corte')} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-sidebar)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '0.7rem 1.2rem', borderRadius: '8px', cursor: 'pointer' }}>
-              <RefreshCw size={16} /> Reabrir Corte
-            </button>
-          )}
         </div>
 
-        {/* Resumen de talles */}
-        {pedidosDelGrupo.length > 0 && (() => {
-          const talleOrden = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2', '4', '6', '8', '10', '12', '14', '16'];
-          const sortTalle = (arr) => arr.sort((a, b) => {
-            const ia = talleOrden.indexOf(a[0]);
-            const ib = talleOrden.indexOf(b[0]);
-            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-          });
-
-          // Separate standard vs exception pedidos
-          const normales = pedidosDelGrupo.filter(p => !p.observaciones);
-          const excepciones = pedidosDelGrupo.filter(p => !!p.observaciones);
-
-          // Group standards by talle
-          const conteoNormal = {};
-          normales.forEach(p => { conteoNormal[p.talle] = (conteoNormal[p.talle] || 0) + 1; });
-          const normalesOrdenados = sortTalle(Object.entries(conteoNormal));
-
-          // Group exceptions by talle+observacion
-          const conteoExcep = {};
-          excepciones.forEach(p => {
-            const key = p.talle + '|||' + p.observaciones;
-            if (!conteoExcep[key]) conteoExcep[key] = { talle: p.talle, obs: p.observaciones, cant: 0 };
-            conteoExcep[key].cant++;
-          });
-          const excepcionesOrdenadas = Object.values(conteoExcep).sort((a, b) => {
-            const ia = talleOrden.indexOf(a.talle);
-            const ib = talleOrden.indexOf(b.talle);
-            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-          });
-
-          return (
-            <div style={{ marginBottom: '1.5rem', padding: '1.25rem', background: 'var(--bg-dark)', borderRadius: '12px', border: '2px solid var(--border-color)' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cortar:</div>
-              {/* Standard talles */}
-              {normalesOrdenados.length > 0 && (
-                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  {normalesOrdenados.map(([talle, cant]) => (
-                    <div key={talle} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.75rem 1.25rem', borderRadius: '10px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', minWidth: '70px' }}>
-                      <span style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--accent)', lineHeight: 1 }}>{cant}</span>
-                      <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-main)', marginTop: '4px' }}>{talle}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* Exceptions */}
-              {excepcionesOrdenadas.length > 0 && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '1rem 0 0.75rem 0' }}>
-                    <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
-                    <span style={{ fontSize: '0.75rem', color: '#FACC15', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                      <AlertTriangle size={13} aria-hidden="true" /> Con excepción
-                    </span>
-                    <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    {excepcionesOrdenadas.map((e) => (
-                      <div key={e.talle + e.obs} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.6rem 1rem', borderRadius: '10px', background: 'rgba(250,204,21,0.07)', border: '1px solid rgba(250,204,21,0.3)', minWidth: '70px' }}>
-                        <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#FACC15', lineHeight: 1 }}>{e.cant}</span>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', marginTop: '3px' }}>{e.talle}</span>
-                        <span style={{ fontSize: '0.7rem', color: '#FACC15', marginTop: '4px', textAlign: 'center', maxWidth: '90px', lineHeight: 1.3 }}>{e.obs}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* Lista de prendas */}
-        <div style={{ border: '1px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden' }}>
-          {pedidosDelGrupo.map((p, idx) => {
-            const finalizado = ESTADOS_TERMINADO.includes(p.estado);
-            return (
-            <div key={p.id} style={{
-              display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem',
-              borderBottom: idx < pedidosDelGrupo.length - 1 ? '1px solid var(--border-color)' : 'none',
-              background: finalizado ? 'rgba(16,185,129,0.06)' : 'var(--bg-sidebar)'
-            }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', width: '28px', flexShrink: 0, fontWeight: 'bold' }}>{idx + 1}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{p.clientes?.nombre || p.cliente_dni}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '2px' }}>
-                  <span>Talle: <strong style={{ color: 'var(--accent)' }}>{p.talle}</strong></span>
-                  {p.nombre_bordado && <span>Bordado: <strong style={{ color: 'var(--text-main)' }}>{p.nombre_bordado}</strong></span>}
-                </div>
-                {p.observaciones && (
-                  <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#FACC15', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <AlertTriangle size={12} /> {p.observaciones}
-                  </div>
-                )}
-              </div>
-              {ESTADOS_COLA.includes(p.estado) && (
-                <button onClick={() => cambiarEstado(p.id, 'En Corte')} disabled={actualizando === p.id} style={{ background: '#7C3AED', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', cursor: 'pointer', flexShrink: 0, opacity: actualizando === p.id ? 0.5 : 1 }}>
-                  <PlayCircle size={14} />
-                </button>
-              )}
-              {ESTADOS_EN_PROGRESO.includes(p.estado) && (
-                <button onClick={() => cambiarEstado(p.id, 'Corte Finalizado')} disabled={actualizando === p.id} style={{ background: '#10B981', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', cursor: 'pointer', flexShrink: 0, opacity: actualizando === p.id ? 0.5 : 1 }}>
-                  <CheckCircle size={14} />
-                </button>
-              )}
-              {finalizado && (
-                <span style={{ fontSize: '0.7rem', color: '#10B981', fontWeight: 'bold', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <CheckCircle size={14} /> Listo
-                </span>
-              )}
-            </div>
-            );
-          })}
+        {/* Botones de acción — grandes, touch-friendly */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {porCortar.length > 0 && (
+            <button
+              disabled={actualizando !== null}
+              onClick={async () => { await cambiarEstadoLote(porCortar, 'En Corte'); setLoteAbierto(null); }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '14px', padding: '1.1rem', fontSize: '1.1rem', fontWeight: '700', cursor: 'pointer', minHeight: '60px', opacity: actualizando !== null ? 0.6 : 1, boxShadow: '0 4px 16px rgba(0,158,227,0.3)' }}
+            >
+              <PlayCircle size={22} /> Iniciar Corte · {porCortar.length} prendas
+            </button>
+          )}
+          {enCorte.length > 0 && (
+            <button
+              disabled={actualizando !== null}
+              onClick={async () => { await cambiarEstadoLote(enCorte, 'Corte Finalizado'); setLoteAbierto(null); }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: '#10B981', color: 'white', border: 'none', borderRadius: '14px', padding: '1.1rem', fontSize: '1.1rem', fontWeight: '700', cursor: 'pointer', minHeight: '60px', opacity: actualizando !== null ? 0.6 : 1, boxShadow: '0 4px 16px rgba(16,185,129,0.3)' }}
+            >
+              <CheckCircle size={22} /> Finalizar Corte · {enCorte.length} prendas
+            </button>
+          )}
+          {/* Acciones secundarias — discretas */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+            {enCorte.length > 0 && (
+              <button
+                onClick={() => cambiarEstadoLote(enCorte, 'Autorizado')}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '0.65rem', fontSize: '0.82rem', cursor: 'pointer' }}
+              >
+                <RefreshCw size={13} /> Devolver a cola
+              </button>
+            )}
+            {finalizados.length === total && total > 0 && (
+              <button
+                onClick={() => cambiarEstadoLote(finalizados, 'En Corte')}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '0.65rem', fontSize: '0.82rem', cursor: 'pointer' }}
+              >
+                <RefreshCw size={13} /> Reabrir corte
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
   // =========== KANBAN PRINCIPAL ===========
-  const CardLote = ({ grupo, color }) => {
+  const CardLote = ({ grupo, color, forwardEstado, backEstado }) => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
     const prioridadColor = loteInfo?.prioridad ? PRIORIDAD_COLORS[loteInfo.prioridad] : 'transparent';
     const prioridadLabel = loteInfo?.prioridad ? PRIORIDAD_LABELS[loteInfo.prioridad] : '';
     const cantidad = grupo.pedidos.length;
     const esIndividual = !grupo.grado;
+    const cardRef = useRef(null);
+    const touchStartX = useRef(0);
+    const touchDeltaX = useRef(0);
+    const swipeThreshold = 80;
+
+    const handleTouchStart = (e) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchDeltaX.current = 0;
+      if (cardRef.current) cardRef.current.style.transition = 'none';
+    };
+    const handleTouchMove = (e) => {
+      const delta = e.touches[0].clientX - touchStartX.current;
+      touchDeltaX.current = delta;
+      if (cardRef.current) {
+        const clamped = Math.max(-150, Math.min(150, delta));
+        cardRef.current.style.transform = 'translateX(' + clamped + 'px) rotate(' + (clamped * 0.03) + 'deg)';
+        if (delta > swipeThreshold && forwardEstado) {
+          cardRef.current.style.background = 'rgba(16,185,129,0.25)';
+          cardRef.current.style.borderColor = '#10B981';
+        } else if (delta < -swipeThreshold && backEstado) {
+          cardRef.current.style.background = 'rgba(251,146,60,0.25)';
+          cardRef.current.style.borderColor = '#FB923C';
+        } else {
+          cardRef.current.style.background = '';
+          cardRef.current.style.borderColor = '';
+        }
+      }
+    };
+    const handleTouchEnd = () => {
+      const delta = touchDeltaX.current;
+      if (cardRef.current) {
+        cardRef.current.style.transition = 'transform 0.3s ease, opacity 0.3s ease, background 0.3s ease';
+        if (delta > swipeThreshold && forwardEstado) {
+          cardRef.current.style.transform = 'translateX(110%) rotate(4deg)';
+          cardRef.current.style.opacity = '0';
+          setTimeout(() => cambiarEstadoLote(grupo.pedidos, forwardEstado), 300);
+        } else if (delta < -swipeThreshold && backEstado) {
+          cardRef.current.style.transform = 'translateX(-110%) rotate(-4deg)';
+          cardRef.current.style.opacity = '0';
+          setTimeout(() => cambiarEstadoLote(grupo.pedidos, backEstado), 300);
+        } else {
+          cardRef.current.style.transform = '';
+          cardRef.current.style.background = '';
+          cardRef.current.style.borderColor = '';
+        }
+      }
+    };
 
     return (
       <div
-        onClick={() => { if (!esIndividual) setLoteAbierto({ grupo }); }}
+        ref={cardRef}
+        draggable={!isMobile}
+        onDragStart={() => { draggedGrupoRef.current = grupo; }}
+        onDragEnd={() => { draggedGrupoRef.current = null; setDragOverCol(null); }}
+        onTouchStart={isMobile ? handleTouchStart : undefined}
+        onTouchMove={isMobile ? handleTouchMove : undefined}
+        onTouchEnd={isMobile ? handleTouchEnd : undefined}
+        onClick={() => { if (!esIndividual && Math.abs(touchDeltaX.current) < 10) setLoteAbierto({ grupo }); }}
         style={{
           background: 'var(--bg-sidebar)', borderRadius: '12px',
           border: '1px solid var(--border-color)',
-          cursor: esIndividual ? 'default' : 'pointer',
-          transition: 'transform 0.15s, box-shadow 0.15s',
-          overflow: 'hidden'
+          cursor: isMobile ? 'default' : (esIndividual ? 'default' : 'grab'),
+          overflow: 'hidden',
+          touchAction: isMobile ? 'pan-y' : 'auto'
         }}
-        onMouseEnter={(e) => { if (!esIndividual) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'; } }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
       >
         {/* Barra prioridad */}
         {prioridadColor !== 'transparent' && (
@@ -440,15 +479,21 @@ const Corte = () => {
               {grupo.pedidos[0]?.clientes?.nombre} — T: {grupo.pedidos[0]?.talle}
             </div>
           )}
+          {isMobile && !esIndividual && (
+            <div style={{ marginTop: '6px', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', gap: '0.75rem' }}>
+              {backEstado && <span>← devolver</span>}
+              {forwardEstado && <span style={{ marginLeft: 'auto' }}>avanzar →</span>}
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
   const columnas = [
-    { titulo: 'Cola de Corte', subtitle: 'Esperando ser cortados', color: '#3B82F6', grupos: colaLotes },
-    { titulo: 'En Corte', subtitle: 'En proceso ahora', color: '#7C3AED', grupos: enProgresoLotes },
-    { titulo: 'Corte Finalizado', subtitle: 'Finalizados', color: '#10B981', grupos: terminadosLotesFiltrados }
+    { titulo: 'Cola de Corte',   subtitle: 'Esperando ser cortados', color: '#3B82F6', dropEstado: 'Autorizado',       grupos: colaLotes,              forwardEstado: 'En Corte',        backEstado: null },
+    { titulo: 'En Corte',        subtitle: 'En proceso ahora',       color: '#7C3AED', dropEstado: 'En Corte',          grupos: enProgresoLotes,         forwardEstado: 'Corte Finalizado', backEstado: 'Autorizado' },
+    { titulo: 'Corte Finalizado', subtitle: 'Finalizados',           color: '#10B981', dropEstado: 'Corte Finalizado',  grupos: terminadosLotesFiltrados, forwardEstado: null,              backEstado: 'En Corte' },
   ];
 
   return (
@@ -510,13 +555,23 @@ const Corte = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {columnas[activeTab].grupos.length === 0 ? (
-                  <div style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setDragOverCol(columnas[activeTab].dropEstado); }}
+                    onDragLeave={() => setDragOverCol(null)}
+                    onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos, columnas[activeTab].dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
+                    style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--text-muted)', background: dragOverCol === columnas[activeTab].dropEstado ? columnas[activeTab].color + '15' : 'rgba(255,255,255,0.02)', borderRadius: '8px', border: dragOverCol === columnas[activeTab].dropEstado ? '2px dashed ' + columnas[activeTab].color : '1px dashed var(--border-color)', transition: 'all 0.15s' }}>
                     Sin lotes en esta etapa
                   </div>
                 ) : (
-                  columnas[activeTab].grupos.map((grupo, i) => (
-                    <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} />
-                  ))
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setDragOverCol(columnas[activeTab].dropEstado); }}
+                    onDragLeave={() => setDragOverCol(null)}
+                    onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos, columnas[activeTab].dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === columnas[activeTab].dropEstado ? '2px dashed ' + columnas[activeTab].color : '2px dashed transparent', transition: 'outline 0.12s' }}>
+                    {columnas[activeTab].grupos.map((grupo, i) => (
+                      <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} forwardEstado={columnas[activeTab].forwardEstado} backEstado={columnas[activeTab].backEstado} />
+                    ))}
+                  </div>
                 )}
               </div>
             </>
@@ -538,13 +593,23 @@ const Corte = () => {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {col.grupos.length === 0 ? (
-                      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.dropEstado); }}
+                        onDragLeave={() => setDragOverCol(null)}
+                        onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos, col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
+                        style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: dragOverCol === col.dropEstado ? col.color + '15' : 'rgba(255,255,255,0.02)', borderRadius: '8px', border: dragOverCol === col.dropEstado ? '2px dashed ' + col.color : '1px dashed var(--border-color)', transition: 'all 0.15s' }}>
                         Sin lotes
                       </div>
                     ) : (
-                      col.grupos.map((grupo, i) => (
-                        <CardLote key={i} grupo={grupo} color={col.color} />
-                      ))
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.dropEstado); }}
+                        onDragLeave={() => setDragOverCol(null)}
+                        onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos, col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
+                        style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === col.dropEstado ? '2px dashed ' + col.color : '2px dashed transparent', transition: 'outline 0.12s' }}>
+                        {col.grupos.map((grupo, i) => (
+                          <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} />
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
