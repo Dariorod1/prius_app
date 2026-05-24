@@ -18,7 +18,7 @@ const Sidebar = ({ currentRole, isOpen, setIsOpen }) => {
   const routes = [
     { path: '/', name: 'Inicio', icon: <Home className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador', 'cortador', 'confeccion', 'bordador'] },
     { path: '/libro-mayor', name: 'Libro Mayor', icon: <BookOpen className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
-    { path: '/pedidos', name: 'Recepción', icon: <ClipboardList className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
+    // { path: '/pedidos', name: 'Recepción', icon: <ClipboardList className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] }, // desactivado temporalmente
     { path: '/recepcion-lote', name: 'Lotes', icon: <Layers className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
     { path: '/escuelas', name: 'Escuelas', icon: <School className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
     { path: '/empleados', name: 'Empleados', icon: <Users className="nav-icon" aria-hidden="true" />, roles: ['admin'] },

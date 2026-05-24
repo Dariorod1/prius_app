@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { CheckCircle, XCircle, Users, Plus, Trash2, Upload, Image, Send } from 'lucide-react';
+import { CheckCircle, XCircle, Users, Plus, Trash2, Upload, Image, Send, Pencil, X } from 'lucide-react';
 
 const GRADOS = [
   '1er Grado A', '1er Grado B', '1er Grado C',
@@ -39,6 +39,30 @@ const RecepcionLote = () => {
   const [uploadingCampera, setUploadingCampera] = useState(false);
   const [selectedPedidos, setSelectedPedidos] = useState([]);
   const [modalEliminar, setModalEliminar] = useState(null); // 'chomba' | 'campera' | null
+  const [editandoPedido, setEditandoPedido] = useState(null); // { id, talle, nombre_bordado }
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [recientesLotes, setRecientesLotes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('prius_lotes_recientes') || '[]'); } catch { return []; }
+  });
+
+  const ESTADOS_EDITABLE = ['Pendiente', 'Autorizado'];
+
+  const guardarEdicion = async () => {
+    if (!editandoPedido) return;
+    setGuardandoEdit(true);
+    const { error } = await supabase
+      .from('pedidos')
+      .update({ talle: editandoPedido.talle, nombre_bordado: editandoPedido.nombre_bordado })
+      .eq('id', editandoPedido.id);
+    if (error) {
+      setMensaje({ tipo: 'error', texto: 'Error al guardar.' });
+    } else {
+      setPedidosLote(prev => prev.map(p => p.id === editandoPedido.id ? { ...p, talle: editandoPedido.talle, nombre_bordado: editandoPedido.nombre_bordado } : p));
+      setMensaje({ tipo: 'success', texto: 'Pedido actualizado.' });
+      setEditandoPedido(null);
+    }
+    setGuardandoEdit(false);
+  };
 
   const [form, setForm] = useState({
     dni: '',
@@ -99,16 +123,17 @@ const RecepcionLote = () => {
   }, [form.dni]);
 
   // Cargar lote existente de la DB
-  const cargarLote = useCallback(async () => {
-    if (!institucionId || !grado) return;
+  const cargarLoteConValores = useCallback(async (instId, gr) => {
+    if (!instId || !gr) return;
+    setInstitucionId(instId);
+    setGrado(gr);
     setLoading(true);
 
-    // Cargar o crear registro de lote
     const { data: loteData } = await supabase
       .from('lotes')
       .select('*')
-      .eq('institucion_id', institucionId)
-      .eq('grado', grado)
+      .eq('institucion_id', instId)
+      .eq('grado', gr)
       .single();
 
     if (loteData) {
@@ -119,29 +144,36 @@ const RecepcionLote = () => {
       setPrecioLoteChomba(loteData.precio_chomba != null ? String(loteData.precio_chomba) : '');
       setPrecioLoteCampera(loteData.precio_campera != null ? String(loteData.precio_campera) : '');
     } else {
-      // Crear lote nuevo
       const { data: nuevoLote } = await supabase
         .from('lotes')
-        .insert({ institucion_id: institucionId, grado, prioridad: 'ninguna' })
+        .insert({ institucion_id: instId, grado: gr, prioridad: 'ninguna' })
         .select()
         .single();
       if (nuevoLote) setLoteId(nuevoLote.id);
     }
 
-    // Cargar pedidos del lote
     const { data, error } = await supabase
       .from('pedidos')
       .select('*, clientes(nombre, dni)')
-      .eq('institucion_id', institucionId)
-      .eq('grado', grado)
+      .eq('institucion_id', instId)
+      .eq('grado', gr)
       .order('fecha_creacion', { ascending: true });
 
-    if (!error && data) {
-      setPedidosLote(data);
-    }
+    if (!error && data) setPedidosLote(data);
     setLoading(false);
     setLoteActivo(true);
-  }, [institucionId, grado]);
+
+    const nombreInstitucion = instituciones.find(i => i.id === instId)?.nombre || '';
+    const entrada = { institucionId: instId, grado: gr, nombre: nombreInstitucion, ts: Date.now() };
+    setRecientesLotes(prev => {
+      const filtrado = prev.filter(r => !(r.institucionId === instId && r.grado === gr));
+      const nuevos = [entrada, ...filtrado].slice(0, 3);
+      localStorage.setItem('prius_lotes_recientes', JSON.stringify(nuevos));
+      return nuevos;
+    });
+  }, [instituciones]);
+
+  const cargarLote = useCallback(() => cargarLoteConValores(institucionId, grado), [cargarLoteConValores, institucionId, grado]);
 
   const guardarPrecioLote = async (campo, valor) => {
     if (!loteId) return;
@@ -349,49 +381,81 @@ const RecepcionLote = () => {
 
   // Selector de Lote (escuela + grado)
   if (!loteActivo) {
+    const tieneRecientes = recientesLotes.length > 0;
     return (
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
         <h1 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Recepción por Lote</h1>
         <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Seleccioná la escuela y el grado para comenzar o continuar la carga de un lote.</p>
 
-        <div style={{ background: 'var(--bg-sidebar)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Escuela / Institución</label>
-            <select
-              className="form-control"
-              value={institucionId}
-              onChange={(e) => setInstitucionId(e.target.value)}
+        <div style={{ display: 'grid', gridTemplateColumns: tieneRecientes ? '1fr 1fr' : '1fr', gap: '2rem', alignItems: 'start' }}>
+          {/* Columna izquierda: formulario de búsqueda */}
+          <div style={{ background: 'var(--bg-sidebar)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Escuela / Institución</label>
+              <select
+                className="form-control"
+                value={institucionId}
+                onChange={(e) => setInstitucionId(e.target.value)}
+              >
+                <option value="">-- Seleccioná una escuela --</option>
+                {instituciones.map(i => (
+                  <option key={i.id} value={i.id}>{i.nombre}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Grado / División</label>
+              <select
+                className="form-control"
+                value={grado}
+                onChange={(e) => setGrado(e.target.value)}
+              >
+                <option value="">-- Seleccioná un grado --</option>
+                {GRADOS.map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              className="btn btn-primary"
+              disabled={!institucionId || !grado}
+              onClick={cargarLote}
+              style={{ width: '100%', padding: '1rem', fontSize: '1rem', opacity: (!institucionId || !grado) ? 0.5 : 1 }}
             >
-              <option value="">-- Seleccioná una escuela --</option>
-              {instituciones.map(i => (
-                <option key={i.id} value={i.id}>{i.nombre}</option>
-              ))}
-            </select>
+              <Users size={18} style={{ marginRight: '8px' }} />
+              {loading ? 'Cargando...' : 'Abrir Lote'}
+            </button>
           </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Grado / División</label>
-            <select
-              className="form-control"
-              value={grado}
-              onChange={(e) => setGrado(e.target.value)}
-            >
-              <option value="">-- Seleccioná un grado --</option>
-              {GRADOS.map(g => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            className="btn btn-primary"
-            disabled={!institucionId || !grado}
-            onClick={cargarLote}
-            style={{ width: '100%', padding: '1rem', fontSize: '1rem', opacity: (!institucionId || !grado) ? 0.5 : 1 }}
-          >
-            <Users size={18} style={{ marginRight: '8px' }} />
-            {loading ? 'Cargando...' : 'Abrir Lote'}
-          </button>
+          {/* Columna derecha: lotes recientes */}
+          {tieneRecientes && (
+            <div>
+              <h3 style={{ color: 'var(--text-main)', margin: '0 0 1rem 0', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1rem' }}>🕐</span> Vistos recientemente
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {recientesLotes.map((r) => (
+                  <button
+                    key={r.institucionId + '_' + r.grado}
+                    onClick={() => cargarLoteConValores(r.institucionId, r.grado)}
+                    disabled={loading}
+                    style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem 1.25rem', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s, background 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'var(--bg-dark)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-sidebar)'; }}
+                  >
+                    <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.95rem', marginBottom: '2px' }}>{r.nombre}</div>
+                    <div style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '600' }}>{r.grado}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
+                      {new Date(r.ts).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem', opacity: 0.6 }}>Un click abre el lote directo</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -484,6 +548,15 @@ const RecepcionLote = () => {
                     <div style={{ width: Math.min(porcentaje, 100) + '%', height: '100%', background: porcentaje >= 100 ? 'var(--accent)' : 'var(--primary)', borderRadius: '2px' }}></div>
                   </div>
                 </div>
+                {ESTADOS_EDITABLE.includes(p.estado) && (
+                  <button
+                    onClick={() => setEditandoPedido({ id: p.id, talle: p.talle, nombre_bordado: p.nombre_bordado || '' })}
+                    style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '4px', flexShrink: 0 }}
+                    title="Editar talle y bordado"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                )}
                 <button
                   onClick={() => eliminarAlumno(p.id)}
                   style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', flexShrink: 0 }}
@@ -656,6 +729,61 @@ const RecepcionLote = () => {
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Modal editar pedido */}
+      {editandoPedido && (
+        <div
+          onClick={() => setEditandoPedido(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg-sidebar)', borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '400px', border: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Pencil size={16} style={{ color: 'var(--primary)' }} /> Editar prenda
+              </h3>
+              <button onClick={() => setEditandoPedido(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Talle</label>
+                <select
+                  className="form-control"
+                  value={editandoPedido.talle}
+                  onChange={e => setEditandoPedido(prev => ({ ...prev, talle: e.target.value }))}>
+                  <option value="">--</option>
+                  {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2', '4', '6', '8', '10', '12', '14', '16'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Texto a bordar</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Nombre o texto"
+                  value={editandoPedido.nombre_bordado}
+                  onChange={e => setEditandoPedido(prev => ({ ...prev, nombre_bordado: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button
+                onClick={() => setEditandoPedido(null)}
+                style={{ flex: 1, padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={guardarEdicion}
+                disabled={guardandoEdit || !editandoPedido.talle}
+                style={{ flex: 2, padding: '0.75rem', borderRadius: '8px', border: 'none', background: 'var(--primary)', color: 'white', fontWeight: '700', cursor: 'pointer', opacity: guardandoEdit ? 0.6 : 1 }}>
+                {guardandoEdit ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {mensaje && (
         <div style={{
