@@ -14,11 +14,13 @@ const Dashboard = () => {
 
   const [filtroInstitucion, setFiltroInstitucion] = useState('');
   const [filtroInstitucionInput, setFiltroInstitucionInput] = useState('');
+  const [showEscuelasDropdown, setShowEscuelasDropdown] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroGrado, setFiltroGrado] = useState('');
   const [filtroPrenda, setFiltroPrenda] = useState('');
   const [filtroCobro, setFiltroCobro] = useState('');
+  const [gradosDisponibles, setGradosDisponibles] = useState([]);
 
   const [expandedRows, setExpandedRows] = useState([]);
   const [estadoLogs, setEstadoLogs] = useState({});
@@ -43,6 +45,16 @@ const Dashboard = () => {
     }
     fetchInstituciones();
   }, []);
+
+  // Cargar grados disponibles cuando cambia la institucion seleccionada
+  useEffect(() => {
+    if (!filtroInstitucion) { setGradosDisponibles([]); setFiltroGrado(''); return; }
+    supabase.from('lotes').select('grado').eq('institucion_id', filtroInstitucion)
+      .then(({ data }) => {
+        if (data) setGradosDisponibles(data.map(l => l.grado).sort());
+      });
+    setFiltroGrado('');
+  }, [filtroInstitucion]);
 
   // Cargar pedidos con filtros de servidor
   useEffect(() => {
@@ -198,22 +210,62 @@ const Dashboard = () => {
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-sidebar)', borderRadius: '8px', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-        <div style={{ flex: '2', minWidth: '160px' }}>
+        <div style={{ flex: '2', minWidth: '160px', position: 'relative' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Institución</label>
-          <input type="text" className="form-control" list="escuelas-list-dash" placeholder="Escribe para buscar..." value={filtroInstitucionInput}
-            onChange={(e) => {
-              const val = e.target.value;
-              setFiltroInstitucionInput(val);
-              const c = instituciones.find(i => i.nombre.toLowerCase() === val.toLowerCase());
-              setFiltroInstitucion(c ? c.id : '');
-            }} />
-          <datalist id="escuelas-list-dash">
-            {instituciones.map(inst => <option key={inst.id} value={inst.nombre} />)}
-          </datalist>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Buscar escuela..."
+              value={filtroInstitucionInput}
+              onChange={(e) => {
+                setFiltroInstitucionInput(e.target.value);
+                setFiltroInstitucion('');
+                setShowEscuelasDropdown(true);
+              }}
+              onFocus={() => setShowEscuelasDropdown(true)}
+              onBlur={() => setTimeout(() => setShowEscuelasDropdown(false), 150)}
+              style={{ paddingRight: filtroInstitucion ? '2rem' : undefined }}
+            />
+            {filtroInstitucion && (
+              <button
+                onClick={() => { setFiltroInstitucion(''); setFiltroInstitucionInput(''); }}
+                style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1, padding: 0 }}
+              >×</button>
+            )}
+          </div>
+          {showEscuelasDropdown && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', borderRadius: '6px', zIndex: 200, maxHeight: '220px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', marginTop: '2px' }}>
+              {instituciones
+                .filter(i => !filtroInstitucionInput || i.nombre.toLowerCase().includes(filtroInstitucionInput.toLowerCase()))
+                .map(inst => (
+                  <div
+                    key={inst.id}
+                    onMouseDown={() => { setFiltroInstitucion(inst.id); setFiltroInstitucionInput(inst.nombre); setShowEscuelasDropdown(false); }}
+                    style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.875rem', background: filtroInstitucion === inst.id ? 'var(--primary)' : 'transparent', color: filtroInstitucion === inst.id ? '#fff' : 'var(--text-main)' }}
+                    onMouseEnter={e => { if (filtroInstitucion !== inst.id) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                    onMouseLeave={e => { if (filtroInstitucion !== inst.id) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {inst.nombre}
+                  </div>
+                ))
+              }
+              {instituciones.filter(i => !filtroInstitucionInput || i.nombre.toLowerCase().includes(filtroInstitucionInput.toLowerCase())).length === 0 && (
+                <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Sin resultados</div>
+              )}
+            </div>
+          )}
         </div>
         <div style={{ flex: '1', minWidth: '110px' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Grado</label>
-          <input type="text" className="form-control" placeholder="Ej: 3er A" value={filtroGrado} onChange={(e) => setFiltroGrado(e.target.value)} />
+          {filtroInstitucion && gradosDisponibles.length > 0 ? (
+            <select className="form-control" value={filtroGrado} onChange={(e) => setFiltroGrado(e.target.value)}>
+              <option value="">Todos</option>
+              {gradosDisponibles.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          ) : (
+            <input type="text" className="form-control" placeholder="Ej: 3er A" value={filtroGrado} onChange={(e) => setFiltroGrado(e.target.value)} />
+          )}
         </div>
         <div style={{ flex: '1', minWidth: '110px' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Prenda</label>
