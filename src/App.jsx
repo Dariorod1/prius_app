@@ -577,6 +577,7 @@ import Pagos from './pages/Pagos';
 import Corte from './pages/Corte';
 import Confeccion from './pages/Confeccion';
 import Bordado from './pages/Bordado';
+import Entrega from './pages/Entrega';
 import Listado from './pages/Listado';
 
 function App() {
@@ -648,6 +649,7 @@ function App() {
           <Route path="corte" element={<Corte />} />
           <Route path="confeccion" element={<Confeccion />} />
           <Route path="bordado" element={<Bordado />} />
+          <Route path="entrega" element={<Entrega />} />
           <Route path="listado" element={<Listado />} />
         </Route>
       </Routes>

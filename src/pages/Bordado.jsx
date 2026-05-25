@@ -6,6 +6,12 @@ const ESTADOS_COLA = ['Confección Finalizada'];
 const ESTADOS_EN_PROGRESO = ['En Bordado'];
 const ESTADOS_TERMINADO = ['Bordado Finalizado'];
 
+const PRIORIDAD_ORDEN  = { urgente: 0, alta: 1, media: 2, baja: 3, ninguna: 4 };
+const PRIORIDAD_COLORS = { urgente: '#EF4444', alta: '#10B981', media: '#FACC15', baja: '#94A3B8', ninguna: 'transparent' };
+const getLoteKey = (g) => g.grado
+  ? (g.pedidos[0]?.institucion_id + '|' + g.grado + '|' + g.tipo_prenda)
+  : ('ind|' + g.pedidos[0]?.id);
+
 const Bordado = () => {
   const [lotes, setLotes] = useState([]);
   const [pedidosTodos, setPedidosTodos] = useState([]);
@@ -110,11 +116,11 @@ const Bordado = () => {
       }
       grupos[key].pedidos.push(p);
     });
-    const prioridadOrden = { urgente: 0, alta: 1, media: 2, baja: 3, ninguna: 4 };
     return Object.values(grupos).sort((a, b) => {
-      const pa = prioridadOrden[a.lote?.prioridad || 'ninguna'] || 4;
-      const pb = prioridadOrden[b.lote?.prioridad || 'ninguna'] || 4;
-      return pa - pb;
+      const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
+      const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
     });
   };
 
@@ -135,6 +141,17 @@ const Bordado = () => {
   const enProgresoLotes = todosGrupos.filter(g =>
     g.pedidos.some(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado)) &&
     !g.pedidos.every(p => ESTADOS_TERMINADO.includes(p.estado))
+  );
+
+  const priorNumMap = new Map(
+    [...colaLotes, ...enProgresoLotes]
+      .sort((a, b) => {
+        const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
+        const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+        if (pa !== pb) return pa - pb;
+        return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
+      })
+      .map((g, i) => [getLoteKey(g), i + 1])
   );
 
   // =========== MODAL NOMBRE GRANDE ===========
@@ -304,9 +321,10 @@ const Bordado = () => {
   }
 
   // =========== CARD LOTE ===========
-  const CardLote = ({ grupo, color, forwardEstado, backEstado, colEstado }) => {
+  const CardLote = ({ grupo, color, forwardEstado, backEstado, colEstado, priorityNum }) => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
+    const prioridadColor = loteInfo?.prioridad ? PRIORIDAD_COLORS[loteInfo.prioridad] : 'transparent';
     const cantidad = grupo.pedidos.length;
     const esIndividual = !grupo.grado;
     const finCount = grupo.pedidos.filter(p => ESTADOS_TERMINADO.includes(p.estado)).length;
@@ -371,6 +389,9 @@ const Bordado = () => {
         onTouchEnd={isMobile ? handleTouchEnd : undefined}
         onClick={() => { if (!esIndividual && Math.abs(touchDeltaX.current) < 10) setLoteAbierto({ grupo }); }}
         style={{ background: 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid var(--border-color)', cursor: isMobile ? 'default' : (esIndividual ? 'default' : 'grab'), overflow: 'hidden', touchAction: isMobile ? 'pan-y' : 'auto' }}>
+        {prioridadColor !== 'transparent' && (
+          <div style={{ height: '5px', background: prioridadColor, width: '100%' }} />
+        )}
         {imagen ? (
           <div style={{ width: '100%', height: '160px', overflow: 'hidden', background: 'var(--bg-dark)' }}>
             <img src={imagen} alt={grupo.tipo_prenda} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -386,6 +407,11 @@ const Bordado = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
             <span style={{ background: color + '30', color: color, fontSize: '0.8rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>{cantidad} prendas</span>
             {finCount > 0 && <span style={{ fontSize: '0.8rem', color: '#10B981', fontWeight: '600' }}>{finCount}/{cantidad} ✓</span>}
+            {priorityNum && (
+              <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: prioridadColor === 'transparent' ? 'rgba(255,255,255,0.08)' : prioridadColor + '20', color: prioridadColor === 'transparent' ? 'var(--text-muted)' : prioridadColor, letterSpacing: '-0.5px' }}>
+                {'#' + priorityNum}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{grupo.tipo_prenda}</div>
           {isMobile && !esIndividual && (
@@ -454,7 +480,7 @@ const Bordado = () => {
                     onDragLeave={() => setDragOverCol(null)}
                     onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos.filter(p => p.estado !== columnas[activeTab].dropEstado), columnas[activeTab].dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
                     style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === columnas[activeTab].dropEstado ? '2px dashed ' + columnas[activeTab].color : '2px dashed transparent', transition: 'outline 0.12s' }}>
-                    {columnas[activeTab].grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} forwardEstado={columnas[activeTab].forwardEstado} backEstado={columnas[activeTab].backEstado} colEstado={columnas[activeTab].dropEstado} />)}
+                    {columnas[activeTab].grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} forwardEstado={columnas[activeTab].forwardEstado} backEstado={columnas[activeTab].backEstado} colEstado={columnas[activeTab].dropEstado} priorityNum={priorNumMap.get(getLoteKey(grupo))} />)}
                   </div>
                 )}
               </div>
@@ -488,7 +514,7 @@ const Bordado = () => {
                         onDragLeave={() => setDragOverCol(null)}
                         onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos.filter(p => p.estado !== col.dropEstado), col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
                         style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === col.dropEstado ? '2px dashed ' + col.color : '2px dashed transparent', transition: 'outline 0.12s' }}>
-                        {col.grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} colEstado={col.dropEstado} />)}
+                        {col.grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} colEstado={col.dropEstado} priorityNum={priorNumMap.get(getLoteKey(grupo))} />)}
                       </div>
                     )}
                   </div>

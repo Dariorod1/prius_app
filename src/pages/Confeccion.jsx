@@ -6,6 +6,12 @@ const ESTADOS_COLA        = ['Corte Finalizado'];
 const ESTADOS_EN_PROGRESO = ['En Confección'];
 const ESTADOS_TERMINADO   = ['Confección Finalizada'];
 
+const PRIORIDAD_ORDEN  = { urgente: 0, alta: 1, media: 2, baja: 3, ninguna: 4 };
+const PRIORIDAD_COLORS = { urgente: '#EF4444', alta: '#10B981', media: '#FACC15', baja: '#94A3B8', ninguna: 'transparent' };
+const getLoteKey = (g) => g.grado
+  ? (g.pedidos[0]?.institucion_id + '|' + g.grado + '|' + g.tipo_prenda)
+  : ('ind|' + g.pedidos[0]?.id);
+
 const Confeccion = () => {
   const [lotes, setLotes] = useState([]);
   const [pedidosTodos, setPedidosTodos] = useState([]);
@@ -88,7 +94,12 @@ const Confeccion = () => {
       }
       grupos[key].pedidos.push(p);
     });
-    return Object.values(grupos);
+    return Object.values(grupos).sort((a, b) => {
+      const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
+      const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
+    });
   };
 
   const colaLotes = agruparPorLote(pedidosTodos.filter(p => ESTADOS_COLA.includes(p.estado)));
@@ -103,6 +114,17 @@ const Confeccion = () => {
       return !pedidosTodos.some(p => p.institucion_id === g.pedidos[0]?.institucion_id && p.grado === g.grado && p.tipo_prenda === g.tipo_prenda && ESTADOS_EN_PROGRESO.includes(p.estado));
     });
   })();
+
+  const priorNumMap = new Map(
+    [...colaLotes, ...enProgresoLotes]
+      .sort((a, b) => {
+        const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
+        const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+        if (pa !== pb) return pa - pb;
+        return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
+      })
+      .map((g, i) => [getLoteKey(g), i + 1])
+  );
 
   if (loteAbierto) {
     const { grupo } = loteAbierto;
@@ -224,9 +246,10 @@ const Confeccion = () => {
     );
   }
 
-  const CardLote = ({ grupo, color, forwardEstado, backEstado }) => {
+  const CardLote = ({ grupo, color, forwardEstado, backEstado, priorityNum }) => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
+    const prioridadColor = loteInfo?.prioridad ? PRIORIDAD_COLORS[loteInfo.prioridad] : 'transparent';
     const cantidad = grupo.pedidos.length;
     const esIndividual = !grupo.grado;
     const cardRef = useRef(null);
@@ -288,6 +311,9 @@ const Confeccion = () => {
         onTouchEnd={isMobile ? handleTouchEnd : undefined}
         onClick={() => { if (!esIndividual && Math.abs(touchDeltaX.current) < 10) setLoteAbierto({ grupo }); }}
         style={{ background: 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid var(--border-color)', cursor: isMobile ? 'default' : (esIndividual ? 'default' : 'grab'), overflow: 'hidden', touchAction: isMobile ? 'pan-y' : 'auto' }}>
+        {prioridadColor !== 'transparent' && (
+          <div style={{ height: '5px', background: prioridadColor, width: '100%' }} />
+        )}
         {imagen ? (
           <div style={{ width: '100%', height: '160px', overflow: 'hidden', background: 'var(--bg-dark)' }}>
             <img src={imagen} alt={grupo.tipo_prenda} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -301,6 +327,11 @@ const Confeccion = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.05rem' }}>{grupo.tipo_prenda}</span>
             <span style={{ background: color + '30', color: color, fontSize: '0.8rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>{cantidad}</span>
+            {priorityNum && (
+              <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: prioridadColor === 'transparent' ? 'rgba(255,255,255,0.08)' : prioridadColor + '20', color: prioridadColor === 'transparent' ? 'var(--text-muted)' : prioridadColor, letterSpacing: '-0.5px' }}>
+                {'#' + priorityNum}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{grupo.institucion}</div>
           {grupo.grado && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{grupo.grado}</div>}
@@ -356,7 +387,7 @@ const Confeccion = () => {
                 {columnas[activeTab].grupos.length === 0 ? (
                   <div style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>Sin lotes en esta etapa</div>
                 ) : (
-                  columnas[activeTab].grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} forwardEstado={columnas[activeTab].forwardEstado} backEstado={columnas[activeTab].backEstado} />)
+                  columnas[activeTab].grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} forwardEstado={columnas[activeTab].forwardEstado} backEstado={columnas[activeTab].backEstado} priorityNum={priorNumMap.get(getLoteKey(grupo))} />)
                 )}
               </div>
             </>
@@ -384,7 +415,7 @@ const Confeccion = () => {
                         onDragLeave={() => setDragOverCol(null)}
                         onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos, col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
                         style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === col.dropEstado ? '2px dashed ' + col.color : '2px dashed transparent', transition: 'outline 0.12s' }}>
-                        {col.grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} />)}
+                        {col.grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} priorityNum={priorNumMap.get(getLoteKey(grupo))} />)}
                       </div>
                     )}
                   </div>

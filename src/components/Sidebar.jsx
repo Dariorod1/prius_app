@@ -11,7 +11,8 @@ import {
   Users,
   X,
   FileText,
-  Layers
+  Layers,
+  Truck
 } from 'lucide-react';
 
 const Sidebar = ({ currentRole, isOpen, setIsOpen }) => {
@@ -26,6 +27,7 @@ const Sidebar = ({ currentRole, isOpen, setIsOpen }) => {
     { path: '/corte', name: 'Sección: Corte', icon: <Scissors className="nav-icon" aria-hidden="true" />, roles: ['admin', 'cortador'] },
     { path: '/confeccion', name: 'Sección: Confección', icon: <Shirt className="nav-icon" aria-hidden="true" />, roles: ['admin', 'confeccion'] },
     { path: '/bordado', name: 'Sección: Bordado', icon: <PenTool className="nav-icon" aria-hidden="true" />, roles: ['admin', 'bordador'] },
+    { path: '/entrega', name: 'Sección: Entrega', icon: <Truck className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador', 'entrega'] },
     { path: '/listado', name: 'Listado', icon: <FileText className="nav-icon" aria-hidden="true" />, roles: ['admin'] },
   ];
 
