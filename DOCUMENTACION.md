@@ -147,7 +147,12 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
    - **Lote unificado:** Si se finaliza una prenda individual, la card del lote permanece en "En Corte" hasta que TODAS estén finalizadas. Se muestra progreso "2/5 finalizadas".
    Al iniciar, el pedido pasa a `En Corte`. Al terminar, a `Corte Finalizado`.
 2. **Confección:** El confeccionador toma los `Corte Finalizado`. Inicia (`En Confección`) y termina (`Confección Finalizada`).
-3. **Bordado:** El bordador toma los `Confección Finalizada`. Al iniciar, pasa a `En Bordado`. Al terminar, a `Bordado Finalizado`. Cada cambio se registra en `pedido_estado_log`.
+3. **Bordado:** El bordador toma los `Confección Finalizada`. Los pedidos se agrupan por **lote** (escuela + grado + tipo_prenda). El seguimiento es **híbrido lote+individual**:
+   - La columna **Cola** muestra lotes donde ningún pedido está en `En Bordado` ni `Bordado Finalizado`.
+   - La columna **En Bordado** muestra lotes donde al menos 1 pedido está en `En Bordado`.
+   - La columna **Finalizado** muestra lotes donde todos los pedidos están en `Bordado Finalizado`.
+   - Al tocar/hacer click en una card, se abre la **vista detalle** con lista de `nombre_bordado` individuales. Cada ítem tiene un ícono de estado y se puede tocar para abrir el **modal nombre**, que muestra el texto a bordar en grande (3rem) y permite marcar/desmarcar ese pedido individual.
+   - Acciones del lote: "Iniciar Bordado del Lote" (mueve todos los de la cola a En Bordado), "Finalizar Lote · N pendientes" (mueve todos los En Bordado a Bordado Finalizado), "Devolver lote a cola". Cada cambio se registra en `pedido_estado_log`.
 4. **Entrega:** Gestionada desde el módulo de **Cobranzas** (`Pagos.jsx`). El botón "Entregar Pedido" aparece sobre la card del pedido únicamente cuando se cumplen **ambas** condiciones simultáneamente:
    - `monto_pagado >= precio_total` (100% pagado).
    - `estado === 'Bordado Finalizado'` (producción completamente terminada).
@@ -191,12 +196,19 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
 - [x] **Supabase Storage:** Bucket `imagenes` (público, `UPDATE storage.buckets SET public = true`). Policies de INSERT/UPDATE/SELECT/DELETE habilitadas. Cache-buster (`?t=timestamp`) en URLs para evitar imágenes cacheadas.
 - [x] **Libro Mayor (`/libro-mayor`):** Vista consolidada cross-lote de todos los pedidos. Reemplaza la doble entrada de planillas (ya no hace falta registrar el pago en el lote Y en el libro mayor por separado — la DB es única fuente de verdad). Incluye: 4 KPI cards (Total pedidos, Facturado, Cobrado, Saldo pendiente), filtros por Institución + Grado + Prenda + Estado + Estado de cobro (con deuda / pagado completo) + búsqueda por nombre/DNI, columna Institución/Grado en tabla, barra de progreso de pago con saldo pendiente en amarillo, botón **+ Pago** por fila (abre modal para registrar pago con monto + método sin salir de la vista), timeline expandible de estados por pedido.
 - [x] **Talonario y comprobante en pagos:** Cada pago registrado (tanto en Pagos/Cuotas como en el modal rápido del Libro Mayor) permite ingresar el **N° de talonario** físico. Si el método es Transferencia, se habilita un botón para **adjuntar el comprobante** (imagen o PDF), que se sube a Supabase Storage en `comprobantes/{pedidoId}_{timestamp}.ext`. El talonario y el link "Ver comprobante" aparecen en cada fila del historial de movimientos (tanto en el modal de Pagos como en el historial colapsable de las cards de búsqueda).
+- [x] **Confección por Lotes (`Confeccion.jsx`):** Cards agrupadas por lote (igual que Corte). Estados: `Corte Finalizado` → `En Confección` → `Confección Finalizada`. Swipe táctil (derecha = avanzar, izquierda = retroceder) + Drag & Drop HTML5 entre columnas kanban. Columnas: Cola (Corte Finalizado), En Confección, Finalizada. Vista de detalle al tocar/hacer click en la card (imagen, talles, lista de pedidos, acciones masivas e individuales).
+- [x] **Bordado por Lotes (`Bordado.jsx`) — Modelo híbrido lote+individual:** Reescritura completa. Los pedidos se agrupan por `institucion_id + grado + tipo_prenda`. Columnas kanban: Cola (lotes donde ningún pedido está en bordado), En Bordado (al menos 1 pedido en bordado), Finalizado (todos los pedidos bordados). Swipe táctil + Drag & Drop entre columnas. **Vista detalle del lote:** header escuela+grado, barra de progreso amarilla, lista scrollable de `nombre_bordado` (cada fila: ícono círculo/check, nombre bordado en amarillo grande, nombre cliente, ícono alerta si hay obs). **Modal nombre bordado:** overlay con el texto a bordar en 3rem + botón "Marcar como Bordado" / "Reabrir". Acciones del lote: "Iniciar Bordado del Lote", "Finalizar Lote · N pendientes", "Devolver lote a cola".
+- [x] **Sidebar:** "Recepción" (`/pedidos`) desactivada temporalmente (comentada en `Sidebar.jsx`). El componente y la ruta siguen existiendo para reactivación futura.
+- [x] **Edición de pedidos en RecepcionLote:** Ícono lápiz por fila de pedido (visible solo cuando `estado` es `Pendiente` o `Autorizado`). Modal que permite editar `talle` (select predefinido) y `nombre_bordado` (text input). Guarda directo a Supabase y actualiza estado local.
+- [x] **Lotes recientes en RecepcionLote:** Panel lateral "Vistos recientemente" con hasta 3 lotes. Se persiste en `localStorage` (`prius_lotes_recientes`). Layout 2 columnas en desktop (formulario izq, recientes der). Click directo en una card abre el lote sin necesidad de completar el formulario.
+- [x] **Libro Mayor — Filtro de Institución (combobox):** Reemplazado el `<input list="datalist">` (que tenía bugs de reapertura) por un combobox personalizado: input de texto que filtra las instituciones con `includes()` en tiempo real, dropdown flotante con los resultados, botón ×  para limpiar la selección. Compatible con cientos de instituciones.
+- [x] **Libro Mayor — Filtro de Grado (select dinámico):** Cuando se selecciona una institución, el campo de grado cambia de texto libre a un `<select>` que carga solo los grados con lotes reales en esa institución (query a tabla `lotes`). Al cambiar de institución, el grado se resetea automáticamente.
 
 ### ⏳ Pendiente (Por hacer)
 - [ ] **Notificaciones WhatsApp:** Avisar al cliente cuando su prenda cambie de estado (integración API).
 - [ ] **Reportes:** Dashboard estadístico de tiempos de producción y flujo de caja.
 - [ ] **Limpiar console.logs de debug:** Hay logs temporales en `Pagos.jsx` (`[STATUS BAR]`, `[REALTIME]`, `[BUSCAR]`) que deben removerse antes del deploy final.
-- [ ] **Confección/Bordado por Lotes:** Adaptar el mismo diseño de Corte (agrupado por lote con imagen) a Confección y Bordado.
+- [ ] **Reactivar Recepción clásica (`/pedidos`):** El componente `Recepcion.jsx` y su ruta existen pero la entrada del Sidebar está comentada. Descomentar en `Sidebar.jsx` para reactivarla.
 
 ---
 
@@ -249,3 +261,20 @@ Para que las actualizaciones instantáneas funcionen en todas las pantallas (Cor
 ### Status Bar en Pagos
 - El array `steps` en `renderStatusBar` debe tener en `labels` los **valores exactos** que la DB almacena en `pedidos.estado`. Si se agrega un nuevo estado, hay que actualizar tanto la DB como este array.
 - El Realtime de Pagos actualiza `pedidosEncontrados` directamente desde `payload.new` (sin llamar a `handleBuscar`) para evitar stale closures.
+
+### Bordado — Modelo híbrido lote+individual
+- `agruparPorLote()` agrupa pedidos por `institucion_id + grado + tipo_prenda`.
+- La columna de destino de cada lote se determina por el **estado agregado** del grupo, no de pedidos individuales.
+- `cambiarEstado(pedidoId, nuevoEstado)` → cambia un pedido individual.
+- `cambiarEstadoLote(pedidos, nuevoEstado)` → cambia en bulk, filtrando solo los que aún no tienen ese estado.
+- En los drop handlers de D&D, filtrar `p.estado !== col.dropEstado` antes de llamar `cambiarEstadoLote` para no regresar pedidos que ya avanzaron.
+
+### RecepcionLote — Lotes recientes
+- `cargarLoteConValores(instId, gr)` acepta valores directamente para evitar leer state obsoleto (cierre/closure).
+- `cargarLote` es un thin wrapper sobre `cargarLoteConValores` que usa el state actual.
+- `prius_lotes_recientes` en localStorage: array de `{ institucionId, grado, nombre, ts }`, máximo 3 entradas.
+
+### Libro Mayor — Combobox de búsqueda
+- El combobox usa `onBlur` + `setTimeout(..., 150)` para ocultar el dropdown. El delay permite que el `onMouseDown` de las opciones se ejecute antes del blur (sin ese delay, el click no llega).
+- Usar `onMouseDown` (no `onClick`) en las opciones del dropdown para que el evento ocurra antes del blur del input.
+- El estado `filtroInstitucion` guarda el UUID; `filtroInstitucionInput` guarda el texto visible en el input.

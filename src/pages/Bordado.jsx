@@ -16,7 +16,7 @@ const Bordado = () => {
   const [modalNombre, setModalNombre] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState(0);
-  const skipRealtimeRef = useRef(false);
+  const skipRealtimeCountRef = useRef(0);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
 
@@ -54,7 +54,7 @@ const Bordado = () => {
     const channel = supabase
       .channel('bordado-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-        if (skipRealtimeRef.current) { skipRealtimeRef.current = false; return; }
+        if (skipRealtimeCountRef.current > 0) { skipRealtimeCountRef.current--; return; }
         cargarDatos();
       })
       .subscribe();
@@ -64,13 +64,13 @@ const Bordado = () => {
   const cambiarEstado = async (pedidoId, nuevoEstado) => {
     setActualizando(pedidoId);
     const user = JSON.parse(localStorage.getItem('priusUser'));
-    skipRealtimeRef.current = true;
+    skipRealtimeCountRef.current += 1;
     setPedidosTodos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
     if (modalNombre && modalNombre.id === pedidoId) setModalNombre(prev => ({ ...prev, estado: nuevoEstado }));
     const { error } = await supabase.from('pedidos').update({ estado: nuevoEstado }).eq('id', pedidoId);
     if (error) {
       setMensaje({ tipo: 'error', texto: 'Error al actualizar.' });
-      skipRealtimeRef.current = false;
+      skipRealtimeCountRef.current = 0;
       cargarDatos();
     } else {
       await supabase.from('pedido_estado_log').insert([{ pedido_id: pedidoId, estado: nuevoEstado, empleado_username: user?.username || 'Desconocido' }]);
@@ -81,13 +81,13 @@ const Bordado = () => {
   const cambiarEstadoLote = async (pedidos, nuevoEstado) => {
     if (!pedidos || pedidos.length === 0) return;
     const user = JSON.parse(localStorage.getItem('priusUser'));
-    skipRealtimeRef.current = true;
     const ids = pedidos.map(p => p.id);
+    skipRealtimeCountRef.current += ids.length;
     setPedidosTodos(prev => prev.map(p => ids.includes(p.id) ? { ...p, estado: nuevoEstado } : p));
     const { error } = await supabase.from('pedidos').update({ estado: nuevoEstado }).in('id', ids);
     if (error) {
       setMensaje({ tipo: 'error', texto: 'Error al actualizar el lote.' });
-      skipRealtimeRef.current = false;
+      skipRealtimeCountRef.current = 0;
       cargarDatos();
     } else {
       const logs = ids.map(id => ({ pedido_id: id, estado: nuevoEstado, empleado_username: user?.username || 'Desconocido' }));
@@ -118,32 +118,24 @@ const Bordado = () => {
     });
   };
 
-  // Cola: ninguno del lote ha sido iniciado
-  const colaLotes = agruparPorLote(pedidosTodos.filter(p => ESTADOS_COLA.includes(p.estado))).filter(g => {
-    if (!g.grado) return true;
-    return !pedidosTodos.some(p =>
-      p.institucion_id === g.pedidos[0]?.institucion_id && p.grado === g.grado && p.tipo_prenda === g.tipo_prenda &&
-      (ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado))
-    );
-  });
+  // Agrupar TODOS los pedidos juntos para que cada lote siempre esté en exactamente una columna
+  const todosGrupos = agruparPorLote(pedidosTodos);
 
-  // En Bordado: al menos 1 pedido del lote está En Bordado
-  const enProgresoLotes = (() => {
-    const relevantes = pedidosTodos.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado));
-    return agruparPorLote(relevantes).filter(g => g.pedidos.some(p => ESTADOS_EN_PROGRESO.includes(p.estado)));
-  })();
+  // Cola: ningún pedido del lote ha sido tocado (ni En Bordado ni Bordado Finalizado)
+  const colaLotes = todosGrupos.filter(g =>
+    !g.pedidos.some(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado))
+  );
 
   // Finalizado: TODOS los pedidos del lote están Bordado Finalizado
-  const terminadosLotes = (() => {
-    const fin = pedidosTodos.filter(p => ESTADOS_TERMINADO.includes(p.estado));
-    return agruparPorLote(fin).filter(g => {
-      if (!g.grado) return true;
-      return !pedidosTodos.some(p =>
-        p.institucion_id === g.pedidos[0]?.institucion_id && p.grado === g.grado && p.tipo_prenda === g.tipo_prenda &&
-        ESTADOS_EN_PROGRESO.includes(p.estado)
-      );
-    });
-  })();
+  const terminadosLotes = todosGrupos.filter(g =>
+    g.pedidos.length > 0 && g.pedidos.every(p => ESTADOS_TERMINADO.includes(p.estado))
+  );
+
+  // En Bordado: todo lo demás (al menos uno iniciado/terminado, pero no todos terminados)
+  const enProgresoLotes = todosGrupos.filter(g =>
+    g.pedidos.some(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado)) &&
+    !g.pedidos.every(p => ESTADOS_TERMINADO.includes(p.estado))
+  );
 
   // =========== MODAL NOMBRE GRANDE ===========
   const ModalNombre = () => {
@@ -312,7 +304,7 @@ const Bordado = () => {
   }
 
   // =========== CARD LOTE ===========
-  const CardLote = ({ grupo, color, forwardEstado, backEstado }) => {
+  const CardLote = ({ grupo, color, forwardEstado, backEstado, colEstado }) => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
     const cantidad = grupo.pedidos.length;
@@ -322,8 +314,8 @@ const Bordado = () => {
     const touchStartX = useRef(0);
     const touchDeltaX = useRef(0);
     const swipeThreshold = 80;
-    const pedidosParaAvanzar = forwardEstado ? grupo.pedidos.filter(p => p.estado !== forwardEstado) : [];
-    const pedidosParaRetroceder = backEstado ? grupo.pedidos.filter(p => p.estado !== backEstado) : [];
+    const pedidosParaAvanzar = forwardEstado ? grupo.pedidos.filter(p => p.estado === colEstado) : [];
+    const pedidosParaRetroceder = backEstado ? grupo.pedidos.filter(p => p.estado === colEstado) : [];
 
     const handleTouchStart = (e) => {
       touchStartX.current = e.touches[0].clientX;
@@ -462,7 +454,7 @@ const Bordado = () => {
                     onDragLeave={() => setDragOverCol(null)}
                     onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos.filter(p => p.estado !== columnas[activeTab].dropEstado), columnas[activeTab].dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
                     style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === columnas[activeTab].dropEstado ? '2px dashed ' + columnas[activeTab].color : '2px dashed transparent', transition: 'outline 0.12s' }}>
-                    {columnas[activeTab].grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} forwardEstado={columnas[activeTab].forwardEstado} backEstado={columnas[activeTab].backEstado} />)}
+                    {columnas[activeTab].grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={columnas[activeTab].color} forwardEstado={columnas[activeTab].forwardEstado} backEstado={columnas[activeTab].backEstado} colEstado={columnas[activeTab].dropEstado} />)}
                   </div>
                 )}
               </div>
@@ -496,7 +488,7 @@ const Bordado = () => {
                         onDragLeave={() => setDragOverCol(null)}
                         onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos.filter(p => p.estado !== col.dropEstado), col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
                         style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === col.dropEstado ? '2px dashed ' + col.color : '2px dashed transparent', transition: 'outline 0.12s' }}>
-                        {col.grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} />)}
+                        {col.grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} colEstado={col.dropEstado} />)}
                       </div>
                     )}
                   </div>

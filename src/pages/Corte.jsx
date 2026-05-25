@@ -31,7 +31,9 @@ const Corte = () => {
   const [loteAbierto, setLoteAbierto] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState(0);
-  const skipRealtimeRef = useRef(false);
+  const skipRealtimeCountRef = useRef(0);
+  const fetchIdRef = useRef(0);
+  const realtimeDebounceRef = useRef(null);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
 
@@ -50,6 +52,7 @@ const Corte = () => {
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
+    const myId = ++fetchIdRef.current;
     const todosEstados = [...ESTADOS_COLA, ...ESTADOS_EN_PROGRESO, ...ESTADOS_TERMINADO];
 
     const [lotesRes, pedidosRes] = await Promise.all([
@@ -60,6 +63,7 @@ const Corte = () => {
         .order('fecha_creacion', { ascending: true })
     ]);
 
+    if (myId !== fetchIdRef.current) return; // fetch obsoleto, ignorar
     if (lotesRes.data) setLotes(lotesRes.data);
     if (pedidosRes.data) setPedidosTodos(pedidosRes.data);
     setLoading(false);
@@ -71,8 +75,9 @@ const Corte = () => {
     const channel = supabase
       .channel('corte-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-        if (skipRealtimeRef.current) { skipRealtimeRef.current = false; return; }
-        cargarDatos();
+        if (skipRealtimeCountRef.current > 0) { skipRealtimeCountRef.current--; return; }
+        clearTimeout(realtimeDebounceRef.current);
+        realtimeDebounceRef.current = setTimeout(cargarDatos, 400);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -81,7 +86,7 @@ const Corte = () => {
   const cambiarEstado = async (pedidoId, nuevoEstado) => {
     setActualizando(pedidoId);
     const user = JSON.parse(localStorage.getItem('priusUser'));
-    skipRealtimeRef.current = true;
+    skipRealtimeCountRef.current += 1;
     setPedidosTodos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
 
     const { error } = await supabase
@@ -91,7 +96,7 @@ const Corte = () => {
 
     if (error) {
       setMensaje({ tipo: 'error', texto: 'Error al actualizar el estado.' });
-      skipRealtimeRef.current = false;
+      skipRealtimeCountRef.current = 0;
       cargarDatos();
     } else {
       await supabase.from('pedido_estado_log').insert([{
@@ -106,8 +111,8 @@ const Corte = () => {
 
   const cambiarEstadoLote = async (pedidos, nuevoEstado) => {
     const user = JSON.parse(localStorage.getItem('priusUser'));
-    skipRealtimeRef.current = true;
     const ids = pedidos.map(p => p.id);
+    skipRealtimeCountRef.current += ids.length;
     setPedidosTodos(prev => prev.map(p => ids.includes(p.id) ? { ...p, estado: nuevoEstado } : p));
 
     const { error } = await supabase
@@ -117,7 +122,7 @@ const Corte = () => {
 
     if (error) {
       setMensaje({ tipo: 'error', texto: 'Error al mover el lote.' });
-      skipRealtimeRef.current = false;
+      skipRealtimeCountRef.current = 0;
       cargarDatos();
     } else {
       const logs = ids.map(id => ({

@@ -15,7 +15,9 @@ const Confeccion = () => {
   const [loteAbierto, setLoteAbierto] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState(0);
-  const skipRealtimeRef = useRef(false);
+  const skipRealtimeCountRef = useRef(0);
+  const fetchIdRef = useRef(0);
+  const realtimeDebounceRef = useRef(null);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
 
@@ -31,6 +33,7 @@ const Confeccion = () => {
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
+    const myId = ++fetchIdRef.current;
     const todosEstados = [...ESTADOS_COLA, ...ESTADOS_EN_PROGRESO, ...ESTADOS_TERMINADO];
     const [lotesRes, pedidosRes] = await Promise.all([
       supabase.from('lotes').select('*, instituciones(nombre)'),
@@ -39,6 +42,7 @@ const Confeccion = () => {
         .in('estado', todosEstados)
         .order('fecha_creacion', { ascending: true })
     ]);
+    if (myId !== fetchIdRef.current) return; // fetch obsoleto, ignorar
     if (lotesRes.data) setLotes(lotesRes.data);
     if (pedidosRes.data) setPedidosTodos(pedidosRes.data);
     setLoading(false);
@@ -49,21 +53,23 @@ const Confeccion = () => {
   useEffect(() => {
     const channel = supabase.channel('confeccion-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-        if (skipRealtimeRef.current) { skipRealtimeRef.current = false; return; }
-        cargarDatos();
+        if (skipRealtimeCountRef.current > 0) { skipRealtimeCountRef.current--; return; }
+        // Debounce para cambios externos (ej: Bordado moviendo items)
+        clearTimeout(realtimeDebounceRef.current);
+        realtimeDebounceRef.current = setTimeout(cargarDatos, 400);
       }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [cargarDatos]);
 
   const cambiarEstadoLote = async (pedidos, nuevoEstado) => {
     const user = JSON.parse(localStorage.getItem('priusUser'));
-    skipRealtimeRef.current = true;
     const ids = pedidos.map(p => p.id);
+    skipRealtimeCountRef.current += ids.length;
     setPedidosTodos(prev => prev.map(p => ids.includes(p.id) ? { ...p, estado: nuevoEstado } : p));
     const { error } = await supabase.from('pedidos').update({ estado: nuevoEstado }).in('id', ids);
     if (error) {
       setMensaje({ tipo: 'error', texto: 'Error al mover el lote.' });
-      skipRealtimeRef.current = false;
+      skipRealtimeCountRef.current = 0;
       cargarDatos();
     } else {
       await supabase.from('pedido_estado_log').insert(ids.map(id => ({ pedido_id: id, estado: nuevoEstado, empleado_username: user?.username || 'Desconocido' })));
