@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Sparkles, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, X, ArrowLeft } from 'lucide-react';
+import { Sparkles, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, X, ArrowLeft, PauseCircle } from 'lucide-react';
 
 const ESTADOS_COLA = ['Confección Finalizada'];
 const ESTADOS_EN_PROGRESO = ['En Bordado'];
@@ -23,8 +23,11 @@ const Bordado = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState(0);
   const skipRealtimeCountRef = useRef(0);
+  const fetchIdRef = useRef(0);
+  const realtimeDebounceRef = useRef(null);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
+  const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -41,6 +44,7 @@ const Bordado = () => {
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
+    const myId = ++fetchIdRef.current;
     const todosEstados = [...ESTADOS_COLA, ...ESTADOS_EN_PROGRESO, ...ESTADOS_TERMINADO];
     const [lotesRes, pedidosRes] = await Promise.all([
       supabase.from('lotes').select('*, instituciones(nombre)'),
@@ -49,6 +53,7 @@ const Bordado = () => {
         .in('estado', todosEstados)
         .order('fecha_creacion', { ascending: true })
     ]);
+    if (myId !== fetchIdRef.current) return;
     if (lotesRes.data) setLotes(lotesRes.data);
     if (pedidosRes.data) setPedidosTodos(pedidosRes.data);
     setLoading(false);
@@ -61,7 +66,8 @@ const Bordado = () => {
       .channel('bordado-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
         if (skipRealtimeCountRef.current > 0) { skipRealtimeCountRef.current--; return; }
-        cargarDatos();
+        clearTimeout(realtimeDebounceRef.current);
+        realtimeDebounceRef.current = setTimeout(cargarDatos, 400);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -102,6 +108,17 @@ const Bordado = () => {
     }
   };
 
+  const cambiarPausado = async (pedidoId, pausar) => {
+    skipRealtimeCountRef.current += 1;
+    setPedidosTodos(prev => prev.map(p => p.id === pedidoId ? { ...p, pausado: pausar } : p));
+    const { error } = await supabase.from('pedidos').update({ pausado: pausar }).eq('id', pedidoId);
+    if (error) {
+      setMensaje({ tipo: 'error', texto: 'Error al excluir: ' + error.message });
+      skipRealtimeCountRef.current = 0;
+      cargarDatos();
+    }
+  };
+
   const agruparPorLote = (pedidos) => {
     const grupos = {};
     pedidos.forEach(p => {
@@ -132,21 +149,27 @@ const Bordado = () => {
   // Agrupar TODOS los pedidos juntos para que cada lote siempre esté en exactamente una columna
   const todosGrupos = agruparPorLote(pedidosTodos);
 
-  // Cola: ningún pedido del lote ha sido tocado (ni En Bordado ni Bordado Finalizado)
-  const colaLotes = todosGrupos.filter(g =>
-    !g.pedidos.some(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado))
-  );
+  // Cola: ningún pedido activo del lote ha sido tocado (paused items excluded)
+  const colaLotes = todosGrupos.filter(g => {
+    const np = g.pedidos.filter(p => !p.pausado);
+    if (np.length === 0) return g.pedidos.length > 0;
+    return !np.some(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado));
+  });
 
-  // Finalizado: TODOS los pedidos del lote están Bordado Finalizado
-  const terminadosLotes = todosGrupos.filter(g =>
-    g.pedidos.length > 0 && g.pedidos.every(p => ESTADOS_TERMINADO.includes(p.estado))
-  );
+  // Finalizado: TODOS los pedidos activos del lote están Bordado Finalizado
+  const terminadosLotes = todosGrupos.filter(g => {
+    const np = g.pedidos.filter(p => !p.pausado);
+    if (np.length === 0) return false;
+    return np.every(p => ESTADOS_TERMINADO.includes(p.estado));
+  });
 
-  // En Bordado: todo lo demás (al menos uno iniciado/terminado, pero no todos terminados)
-  const enProgresoLotes = todosGrupos.filter(g =>
-    g.pedidos.some(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado)) &&
-    !g.pedidos.every(p => ESTADOS_TERMINADO.includes(p.estado))
-  );
+  // En Bordado: al menos uno activo iniciado, pero no todos activos terminados
+  const enProgresoLotes = todosGrupos.filter(g => {
+    const np = g.pedidos.filter(p => !p.pausado);
+    if (np.length === 0) return false;
+    return np.some(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado)) &&
+      !np.every(p => ESTADOS_TERMINADO.includes(p.estado));
+  });
 
   const priorNumMap = new Map(
     [...colaLotes, ...enProgresoLotes]
@@ -229,10 +252,11 @@ const Bordado = () => {
       : grupo.pedidos;
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
-    const finalizados = pedidosDelGrupo.filter(p => ESTADOS_TERMINADO.includes(p.estado));
-    const enBordado = pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado));
-    const enCola = pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado));
-    const total = pedidosDelGrupo.length;
+    const pausados    = pedidosDelGrupo.filter(p => p.pausado);
+    const finalizados = pedidosDelGrupo.filter(p => ESTADOS_TERMINADO.includes(p.estado) && !p.pausado);
+    const enBordado   = pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado) && !p.pausado);
+    const enCola      = pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado) && !p.pausado);
+    const total = pedidosDelGrupo.filter(p => !p.pausado).length;
     const pct = total > 0 ? Math.round((finalizados.length / total) * 100) : 0;
 
     return (
@@ -262,7 +286,7 @@ const Bordado = () => {
 
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.9rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>{finalizados.length} de {total} bordados</span>
+            <span style={{ color: 'var(--text-muted)' }}>{finalizados.length} de {total} bordados{esAdmin && pausados.length > 0 ? ' (' + pausados.length + ' excluida' + (pausados.length !== 1 ? 's' : '') + ')' : ''}</span>
             <span style={{ color: '#FACC15', fontWeight: '700' }}>{pct}%</span>
           </div>
           <div style={{ height: '8px', background: 'var(--bg-dark)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -271,28 +295,40 @@ const Bordado = () => {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem' }}>
-          {pedidosDelGrupo.map(pedido => {
+          {(esAdmin ? pedidosDelGrupo : pedidosDelGrupo.filter(p => !p.pausado)).map(pedido => {
             const done = ESTADOS_TERMINADO.includes(pedido.estado);
             const enProg = ESTADOS_EN_PROGRESO.includes(pedido.estado);
+            const esPausado = !!pedido.pausado;
             return (
               <div
                 key={pedido.id}
-                onClick={() => setModalNombre(pedido)}
-                style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.9rem 1rem', background: done ? 'rgba(16,185,129,0.07)' : 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid ' + (done ? 'rgba(16,185,129,0.25)' : 'var(--border-color)'), cursor: 'pointer', opacity: done ? 0.65 : 1 }}>
+                onClick={() => !esPausado && setModalNombre(pedido)}
+                style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.9rem 1rem', background: esPausado ? 'rgba(148,163,184,0.05)' : (done ? 'rgba(16,185,129,0.07)' : 'var(--bg-sidebar)'), borderRadius: '12px', border: '1px solid ' + (esPausado ? 'rgba(148,163,184,0.2)' : (done ? 'rgba(16,185,129,0.25)' : 'var(--border-color)')), cursor: esPausado ? 'default' : 'pointer', opacity: esPausado ? 0.5 : (done ? 0.65 : 1) }}>
                 <div style={{ flexShrink: 0 }}>
                   {done
                     ? <CheckCircle size={22} style={{ color: '#10B981' }} />
-                    : <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2px solid ' + (enProg ? '#FACC15' : 'var(--border-color)'), background: enProg ? 'rgba(250,204,21,0.1)' : 'transparent' }} />
+                    : esPausado
+                      ? <PauseCircle size={22} style={{ color: '#94A3B8' }} />
+                      : <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2px solid ' + (enProg ? '#FACC15' : 'var(--border-color)'), background: enProg ? 'rgba(250,204,21,0.1)' : 'transparent' }} />
                   }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: done ? 'var(--text-muted)' : '#FACC15', textDecoration: done ? 'line-through' : 'none', letterSpacing: '1px' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: esPausado ? '#94A3B8' : (done ? 'var(--text-muted)' : '#FACC15'), textDecoration: done ? 'line-through' : 'none', letterSpacing: '1px' }}>
                     {pedido.nombre_bordado || '(sin texto)'}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{pedido.clientes?.nombre}</div>
                 </div>
                 {pedido.observaciones && <AlertTriangle size={16} style={{ color: '#F87171', flexShrink: 0 }} />}
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0 }}>›</div>
+                {esAdmin && !done && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); cambiarPausado(pedido.id, !esPausado); }}
+                    title={esPausado ? 'Reincorporar al lote' : 'Excluir del lote'}
+                    style={{ background: esPausado ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: esPausado ? '#10B981' : '#EF4444', fontSize: '0.72rem', fontWeight: '700', flexShrink: 0, lineHeight: 1 }}
+                  >
+                    {esPausado ? 'Reincorporar' : 'Excluir'}
+                  </button>
+                )}
+                {!esPausado && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0 }}>›</div>}
               </div>
             );
           })}
@@ -316,7 +352,7 @@ const Bordado = () => {
             </button>
           )}
           <button
-            onClick={() => cambiarEstadoLote(pedidosDelGrupo.filter(p => !ESTADOS_COLA.includes(p.estado)), 'Confección Finalizada')}
+            onClick={() => cambiarEstadoLote(pedidosDelGrupo.filter(p => !ESTADOS_COLA.includes(p.estado) && !p.pausado), 'Confección Finalizada')}
             style={{ width: '100%', padding: '0.9rem', borderRadius: '12px', border: '1px solid var(--border-color)', cursor: 'pointer', background: 'transparent', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             Devolver lote a cola
           </button>
@@ -330,15 +366,17 @@ const Bordado = () => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
     const prioridadColor = grupo.prioridad && grupo.prioridad !== 'ninguna' ? PRIORIDAD_COLORS[grupo.prioridad] : 'transparent';
-    const cantidad = grupo.pedidos.length;
+    const cantidadActiva = grupo.pedidos.filter(p => !p.pausado).length;
+    const pausadosCount = grupo.pedidos.length - cantidadActiva;
+    const cantidad = cantidadActiva;
     const esIndividual = !grupo.grado;
-    const finCount = grupo.pedidos.filter(p => ESTADOS_TERMINADO.includes(p.estado)).length;
+    const finCount = grupo.pedidos.filter(p => ESTADOS_TERMINADO.includes(p.estado) && !p.pausado).length;
     const cardRef = useRef(null);
     const touchStartX = useRef(0);
     const touchDeltaX = useRef(0);
     const swipeThreshold = 80;
-    const pedidosParaAvanzar = forwardEstado ? grupo.pedidos.filter(p => p.estado === colEstado) : [];
-    const pedidosParaRetroceder = backEstado ? grupo.pedidos.filter(p => p.estado === colEstado) : [];
+    const pedidosParaAvanzar = forwardEstado ? grupo.pedidos.filter(p => p.estado === colEstado && !p.pausado) : [];
+    const pedidosParaRetroceder = backEstado ? grupo.pedidos.filter(p => p.estado === colEstado && !p.pausado) : [];
 
     const handleTouchStart = (e) => {
       touchStartX.current = e.touches[0].clientX;
@@ -412,6 +450,7 @@ const Bordado = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
             <span style={{ background: color + '30', color: color, fontSize: '0.8rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>{cantidad} prendas</span>
             {finCount > 0 && <span style={{ fontSize: '0.8rem', color: '#10B981', fontWeight: '600' }}>{finCount}/{cantidad} ✓</span>}
+            {esAdmin && pausadosCount > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '0.72rem', color: '#94A3B8', fontWeight: '600' }}><PauseCircle size={11} /> {pausadosCount}</span>}
             {priorityNum && (
               <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: prioridadColor === 'transparent' ? 'rgba(255,255,255,0.08)' : prioridadColor + '20', color: prioridadColor === 'transparent' ? 'var(--text-muted)' : prioridadColor, letterSpacing: '-0.5px' }}>
                 {'#' + priorityNum}

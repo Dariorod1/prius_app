@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Shirt, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Shirt, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, ArrowLeft, PauseCircle } from 'lucide-react';
 
 const ESTADOS_COLA        = ['Corte Finalizado'];
 const ESTADOS_EN_PROGRESO = ['En Confección'];
@@ -26,6 +26,7 @@ const Confeccion = () => {
   const realtimeDebounceRef = useRef(null);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
+  const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -68,6 +69,7 @@ const Confeccion = () => {
   }, [cargarDatos]);
 
   const cambiarEstadoLote = async (pedidos, nuevoEstado) => {
+    if (!pedidos || pedidos.length === 0) return;
     const user = JSON.parse(localStorage.getItem('priusUser'));
     const ids = pedidos.map(p => p.id);
     skipRealtimeCountRef.current += ids.length;
@@ -80,6 +82,17 @@ const Confeccion = () => {
     } else {
       await supabase.from('pedido_estado_log').insert(ids.map(id => ({ pedido_id: id, estado: nuevoEstado, empleado_username: user?.username || 'Desconocido' })));
       setMensaje({ tipo: 'success', texto: 'Lote movido a "' + nuevoEstado + '"' });
+    }
+  };
+
+  const cambiarPausado = async (pedidoId, pausar) => {
+    skipRealtimeCountRef.current += 1;
+    setPedidosTodos(prev => prev.map(p => p.id === pedidoId ? { ...p, pausado: pausar } : p));
+    const { error } = await supabase.from('pedidos').update({ pausado: pausar }).eq('id', pedidoId);
+    if (error) {
+      setMensaje({ tipo: 'error', texto: 'Error al excluir: ' + error.message });
+      skipRealtimeCountRef.current = 0;
+      cargarDatos();
     }
   };
 
@@ -107,18 +120,26 @@ const Confeccion = () => {
     });
   };
 
-  const colaLotes = agruparPorLote(pedidosTodos.filter(p => ESTADOS_COLA.includes(p.estado)));
-  const enProgresoLotes = (() => {
-    const pedidos = pedidosTodos.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado) || ESTADOS_TERMINADO.includes(p.estado));
-    return agruparPorLote(pedidos).filter(g => g.pedidos.some(p => ESTADOS_EN_PROGRESO.includes(p.estado)));
-  })();
-  const terminadosLotes = (() => {
-    const pedidos = pedidosTodos.filter(p => ESTADOS_TERMINADO.includes(p.estado));
-    return agruparPorLote(pedidos).filter(g => {
-      if (!g.grado) return true;
-      return !pedidosTodos.some(p => p.institucion_id === g.pedidos[0]?.institucion_id && p.grado === g.grado && p.tipo_prenda === g.tipo_prenda && ESTADOS_EN_PROGRESO.includes(p.estado));
-    });
-  })();
+  // Agrupar TODOS los pedidos (incluidos pausados), luego clasificar por columna mirando solo los no-pausados
+  const todosGrupos = agruparPorLote(pedidosTodos);
+
+  const colaLotes = todosGrupos.filter(g => {
+    const np = g.pedidos.filter(p => !p.pausado);
+    if (np.length === 0) return true; // todos pausados → Cola para que el admin pueda reincorporar
+    return np.every(p => ESTADOS_COLA.includes(p.estado));
+  });
+
+  const enProgresoLotes = todosGrupos.filter(g => {
+    const np = g.pedidos.filter(p => !p.pausado);
+    if (np.length === 0) return false;
+    return !np.every(p => ESTADOS_COLA.includes(p.estado)) && !np.every(p => ESTADOS_TERMINADO.includes(p.estado));
+  });
+
+  const terminadosLotes = todosGrupos.filter(g => {
+    const np = g.pedidos.filter(p => !p.pausado);
+    if (np.length === 0) return false;
+    return np.every(p => ESTADOS_TERMINADO.includes(p.estado));
+  });
 
   const priorNumMap = new Map(
     [...colaLotes, ...enProgresoLotes]
@@ -139,16 +160,17 @@ const Confeccion = () => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
 
-    const porConfeccionar = pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado));
-    const enConfeccion    = pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado));
-    const finalizados     = pedidosDelGrupo.filter(p => ESTADOS_TERMINADO.includes(p.estado));
-    const total = pedidosDelGrupo.length;
+    const pausados        = pedidosDelGrupo.filter(p => p.pausado);
+    const porConfeccionar = pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado) && !p.pausado);
+    const enConfeccion    = pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado) && !p.pausado);
+    const finalizados     = pedidosDelGrupo.filter(p => ESTADOS_TERMINADO.includes(p.estado) && !p.pausado);
+    const total = pedidosDelGrupo.filter(p => !p.pausado).length;
     const pct   = total > 0 ? Math.round((finalizados.length / total) * 100) : 0;
 
     const talleOrden = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2', '4', '6', '8', '10', '12', '14', '16'];
     const sortTalle  = (arr) => arr.sort((a, b) => { const ia = talleOrden.indexOf(a[0]); const ib = talleOrden.indexOf(b[0]); return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib); });
-    const normales    = pedidosDelGrupo.filter(p => !p.observaciones);
-    const excepciones = pedidosDelGrupo.filter(p => !!p.observaciones);
+    const normales    = pedidosDelGrupo.filter(p => !p.observaciones && !p.pausado);
+    const excepciones = pedidosDelGrupo.filter(p => !!p.observaciones && !p.pausado);
     const conteoNormal = {};
     normales.forEach(p => { conteoNormal[p.talle] = (conteoNormal[p.talle] || 0) + 1; });
     const normalesOrdenados = sortTalle(Object.entries(conteoNormal));
@@ -180,7 +202,7 @@ const Confeccion = () => {
           {grupo.grado && <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '2px' }}>{grupo.grado}</div>}
           <div style={{ marginTop: '0.9rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '5px' }}>
-              <span>{finalizados.length} de {total} prendas confeccionadas</span>
+              <span>{finalizados.length} de {total} prendas confeccionadas{esAdmin && pausados.length > 0 ? ' (' + pausados.length + ' excluida' + (pausados.length !== 1 ? 's' : '') + ')' : ''}</span>
               <span style={{ fontWeight: '600', color: pct === 100 ? '#10B981' : 'var(--text-muted)' }}>{pct}%</span>
             </div>
             <div style={{ height: '7px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px' }}>
@@ -247,6 +269,48 @@ const Confeccion = () => {
             )}
           </div>
         </div>
+        {esAdmin && (
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Gestión de prendas
+              {pausados.length > 0 && (
+                <span style={{ background: 'rgba(148,163,184,0.15)', color: '#94A3B8', padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '600' }}>
+                  {pausados.length} excluida{pausados.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {pedidosDelGrupo.map(p => {
+                const esPausado = !!p.pausado;
+                const estadoColor = ESTADOS_COLA.includes(p.estado) ? '#94A3B8' : ESTADOS_EN_PROGRESO.includes(p.estado) ? '#7C3AED' : '#10B981';
+                const estadoLabel = ESTADOS_COLA.includes(p.estado) ? 'En cola' : ESTADOS_EN_PROGRESO.includes(p.estado) ? 'Cosiendo' : 'Lista';
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '8px', background: esPausado ? 'rgba(148,163,184,0.05)' : 'var(--bg-dark)', border: '1px solid ' + (esPausado ? 'rgba(148,163,184,0.2)' : 'var(--border-color)'), opacity: esPausado ? 0.6 : 1 }}>
+                    <PauseCircle size={13} style={{ color: esPausado ? '#94A3B8' : 'transparent', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.clientes?.nombre || p.cliente_dni}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{'T: ' + p.talle}</div>
+                    </div>
+                    <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: esPausado ? 'rgba(148,163,184,0.12)' : (estadoColor + '20'), color: esPausado ? '#94A3B8' : estadoColor, fontWeight: '600', flexShrink: 0 }}>
+                      {esPausado ? 'EXCLUIDA' : estadoLabel}
+                    </span>
+                    {!ESTADOS_TERMINADO.includes(p.estado) && (
+                      <button
+                        onClick={() => cambiarPausado(p.id, !esPausado)}
+                        title={esPausado ? 'Reincorporar prenda' : 'Excluir del lote'}
+                        style={{ background: esPausado ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: esPausado ? '#10B981' : '#EF4444', fontSize: '0.72rem', fontWeight: '700', flexShrink: 0, lineHeight: 1 }}
+                      >
+                        {esPausado ? 'Reincorporar' : 'Excluir'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -255,8 +319,9 @@ const Confeccion = () => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
     const prioridadColor = grupo.prioridad && grupo.prioridad !== 'ninguna' ? PRIORIDAD_COLORS[grupo.prioridad] : 'transparent';
-    const cantidad = grupo.pedidos.length;
+    const cantidad = grupo.pedidos.filter(p => !p.pausado).length;
     const esIndividual = !grupo.grado;
+    const pausadosCount = grupo.pedidos.filter(p => p.pausado).length;
     const cardRef = useRef(null);
     const touchStartX = useRef(0);
     const touchDeltaX = useRef(0);
@@ -292,11 +357,11 @@ const Confeccion = () => {
         if (delta > swipeThreshold && forwardEstado) {
           cardRef.current.style.transform = 'translateX(110%) rotate(4deg)';
           cardRef.current.style.opacity = '0';
-          setTimeout(() => cambiarEstadoLote(grupo.pedidos, forwardEstado), 300);
+          setTimeout(() => cambiarEstadoLote(grupo.pedidos.filter(p => !p.pausado), forwardEstado), 300);
         } else if (delta < -swipeThreshold && backEstado) {
           cardRef.current.style.transform = 'translateX(-110%) rotate(-4deg)';
           cardRef.current.style.opacity = '0';
-          setTimeout(() => cambiarEstadoLote(grupo.pedidos, backEstado), 300);
+          setTimeout(() => cambiarEstadoLote(grupo.pedidos.filter(p => !p.pausado), backEstado), 300);
         } else {
           cardRef.current.style.transform = '';
           cardRef.current.style.background = '';
@@ -332,6 +397,7 @@ const Confeccion = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.05rem' }}>{grupo.tipo_prenda}</span>
             <span style={{ background: color + '30', color: color, fontSize: '0.8rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>{cantidad}</span>
+            {esAdmin && pausadosCount > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '0.72rem', color: '#94A3B8', fontWeight: '600' }}><PauseCircle size={11} /> {pausadosCount}</span>}
             {priorityNum && (
               <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: prioridadColor === 'transparent' ? 'rgba(255,255,255,0.08)' : prioridadColor + '20', color: prioridadColor === 'transparent' ? 'var(--text-muted)' : prioridadColor, letterSpacing: '-0.5px' }}>
                 {'#' + priorityNum}
@@ -340,8 +406,8 @@ const Confeccion = () => {
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{grupo.institucion}</div>
           {grupo.grado && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{grupo.grado}</div>}
-          {grupo.grado && grupo.pedidos.some(p => ESTADOS_TERMINADO.includes(p.estado)) && (
-            <div style={{ fontSize: '0.75rem', color: '#10B981', marginTop: '4px', fontWeight: '600' }}>{grupo.pedidos.filter(p => ESTADOS_TERMINADO.includes(p.estado)).length}/{cantidad} finalizadas</div>
+          {grupo.grado && grupo.pedidos.some(p => !p.pausado && ESTADOS_TERMINADO.includes(p.estado)) && (
+            <div style={{ fontSize: '0.75rem', color: '#10B981', marginTop: '4px', fontWeight: '600' }}>{grupo.pedidos.filter(p => !p.pausado && ESTADOS_TERMINADO.includes(p.estado)).length}/{cantidad} finalizadas</div>
           )}
           {esIndividual && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>{grupo.pedidos[0]?.clientes?.nombre} — T: {grupo.pedidos[0]?.talle}</div>}
           {isMobile && !esIndividual && (
@@ -356,7 +422,7 @@ const Confeccion = () => {
   };
 
   const columnas = [
-    { titulo: 'Cola',          subtitle: 'Corte listo, esperando confección', color: '#3B82F6', dropEstado: 'Corte Finalizado',      grupos: colaLotes,       forwardEstado: 'En Confección',        backEstado: null },
+    { titulo: 'Cola',          subtitle: 'Corte listo, esperando confección', color: '#3B82F6', dropEstado: 'Corte Finalizado',      grupos: esAdmin ? colaLotes : colaLotes.filter(g => g.pedidos.some(p => !p.pausado)), forwardEstado: 'En Confección', backEstado: null },
     { titulo: 'En Confección', subtitle: 'En proceso ahora',                  color: '#7C3AED', dropEstado: 'En Confección',        grupos: enProgresoLotes, forwardEstado: 'Confección Finalizada', backEstado: 'Corte Finalizado' },
     { titulo: 'Finalizada',    subtitle: 'Confección terminada',              color: '#10B981', dropEstado: 'Confección Finalizada', grupos: terminadosLotes, forwardEstado: null,                    backEstado: 'En Confección' },
   ];
@@ -412,13 +478,13 @@ const Confeccion = () => {
                       <div
                         onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.dropEstado); }}
                         onDragLeave={() => setDragOverCol(null)}
-                        onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos, col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
+                        onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos.filter(p => !p.pausado), col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
                         style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: dragOverCol === col.dropEstado ? col.color + '15' : 'rgba(255,255,255,0.02)', borderRadius: '8px', border: dragOverCol === col.dropEstado ? '2px dashed ' + col.color : '1px dashed var(--border-color)', transition: 'all 0.15s' }}>Sin lotes</div>
                     ) : (
                       <div
                         onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.dropEstado); }}
                         onDragLeave={() => setDragOverCol(null)}
-                        onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos, col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
+                        onDrop={(e) => { e.preventDefault(); if (draggedGrupoRef.current) { cambiarEstadoLote(draggedGrupoRef.current.pedidos.filter(p => !p.pausado), col.dropEstado); draggedGrupoRef.current = null; setDragOverCol(null); } }}
                         style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '4px', borderRadius: '10px', outline: dragOverCol === col.dropEstado ? '2px dashed ' + col.color : '2px dashed transparent', transition: 'outline 0.12s' }}>
                         {col.grupos.map((grupo, i) => <CardLote key={i} grupo={grupo} color={col.color} forwardEstado={col.forwardEstado} backEstado={col.backEstado} priorityNum={priorNumMap.get(getLoteKey(grupo))} />)}
                       </div>

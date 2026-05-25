@@ -106,16 +106,32 @@ El corazón del sistema.
     - `monto_pagado`: Suma de todos los pagos realizados.
     - `grado`: (Text, opcional) Grado/división del lote al que pertenece. Si es null, es un pedido individual.
     - `observaciones`: Notas, alteraciones, puños, etc.
-- **Ejemplo:** `{ tipo_prenda: 'Chomba', talle: 'L', grado: '3er Grado A', precio_total: 25000, monto_pagado: 12500, estado: 'Autorizado' }`
+    - `pausado`: (Boolean, DEFAULT false) Si es `true`, la prenda está **excluida** del lote activo. Las prendas excluidas no cuentan para la columna kanban ni para el progreso visible a los empleados. Solo el admin puede excluir/reincorporar prendas.
+- **Ejemplo:** `{ tipo_prenda: 'Chomba', talle: 'L', grado: '3er Grado A', precio_total: 25000, monto_pagado: 12500, estado: 'Autorizado', pausado: false }`
+
+> **SQL de migración:**
+> ```sql
+> ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pausado BOOLEAN DEFAULT false;
+> ```
 
 ### 4.6 Lotes (`lotes`)
 Representa una agrupación de pedidos por escuela + grado. Se crea desde Recepción por Lote.
-- **Campos:** `id (UUID)`, `institucion_id (FK)`, `grado (text)`, `imagen_chomba_url (text)`, `imagen_campera_url (text)`, `prioridad (text)`, `precio_chomba (numeric)`, `precio_campera (numeric)`, `created_at`.
+- **Campos:** `id (UUID)`, `institucion_id (FK)`, `grado (text)`, `imagen_chomba_url (text)`, `imagen_campera_url (text)`, `prioridad (text)`, `prioridad_chomba (text)`, `prioridad_campera (text)`, `precio_chomba (numeric)`, `precio_campera (numeric)`, `created_at`.
 - **Prioridades:** `ninguna`, `baja`, `media`, `alta`, `urgente`.
+- **Prioridad por tipo de prenda:** `prioridad_chomba` y `prioridad_campera` permiten asignar prioridades **independientes** por tipo. Por ejemplo, un lote puede tener prioridad `urgente` en Chombas y `baja` en Camperas. Cada card kanban muestra la prioridad correspondiente a su tipo de prenda.
 - **Constraint:** UNIQUE(institucion_id, grado) — solo un lote por escuela+grado.
 - **Imágenes:** Se almacenan en Supabase Storage (bucket `imagenes`, público). Path: `lotes/{loteId}_chomba.ext` o `lotes/{loteId}_campera.ext`.
 - **Precios del lote:** `precio_chomba` y `precio_campera` se guardan en el lote (no en cada pedido por separado). Se persisten automáticamente al salir del campo en RecepcionLote y se pre-cargan la próxima vez que se abre el lote.
-- **Ejemplo:** `{ institucion_id: '...', grado: '3er Grado A', prioridad: 'alta', precio_chomba: 25000, precio_campera: 38000, imagen_chomba_url: 'https://...' }`
+- **Ejemplo:** `{ institucion_id: '...', grado: '3er Grado A', prioridad_chomba: 'urgente', prioridad_campera: 'baja', precio_chomba: 25000, precio_campera: 38000, imagen_chomba_url: 'https://...' }`
+
+> **SQL de migración:**
+> ```sql
+> ALTER TABLE lotes ADD COLUMN IF NOT EXISTS prioridad_chomba TEXT DEFAULT 'ninguna';
+> ALTER TABLE lotes ADD COLUMN IF NOT EXISTS prioridad_campera TEXT DEFAULT 'ninguna';
+> -- Migrar prioridad global existente a ambos campos:
+> UPDATE lotes SET prioridad_chomba = prioridad, prioridad_campera = prioridad
+> WHERE prioridad IS NOT NULL AND prioridad != 'ninguna';
+> ```
 
 ### 4.4 Historial de Pagos (`pagos_historial`)
 Auditoría financiera.
@@ -146,8 +162,8 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
    - Acciones masivas (mover todo el lote) + botones individuales por prenda.
    - **Lote unificado:** Si se finaliza una prenda individual, la card del lote permanece en "En Corte" hasta que TODAS estén finalizadas. Se muestra progreso "2/5 finalizadas".
    Al iniciar, el pedido pasa a `En Corte`. Al terminar, a `Corte Finalizado`.
-2. **Confección:** El confeccionador toma los `Corte Finalizado`. Inicia (`En Confección`) y termina (`Confección Finalizada`).
-3. **Bordado:** El bordador toma los `Confección Finalizada`. Los pedidos se agrupan por **lote** (escuela + grado + tipo_prenda). El seguimiento es **híbrido lote+individual**:
+2. **Confección:** El confeccionador toma los `Corte Finalizado`. Inicia (`En Confección`) y termina (`Confección Finalizada`). Las cards se ordenan por prioridad de la prenda correspondiente (`prioridad_chomba` o `prioridad_campera` según el `tipo_prenda` del grupo). El **admin** puede **excluir prendas** del lote desde la sección "Gestión de prendas" en la vista de detalle.
+3. **Bordado:** El bordador toma los `Confección Finalizada`. Los pedidos se agrupan por **lote** (escuela + grado + tipo_prenda). El seguimiento es **híbrido lote+individual**. Las cards se ordenan por prioridad de la prenda (`prioridad_chomba` / `prioridad_campera`). El **admin** puede excluir/reincorporar prendas individuales desde la lista de detalle.
    - La columna **Cola** muestra lotes donde ningún pedido está en `En Bordado` ni `Bordado Finalizado`.
    - La columna **En Bordado** muestra lotes donde al menos 1 pedido está en `En Bordado`.
    - La columna **Finalizado** muestra lotes donde todos los pedidos están en `Bordado Finalizado`.
@@ -198,6 +214,15 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
 - [x] **Talonario y comprobante en pagos:** Cada pago registrado (tanto en Pagos/Cuotas como en el modal rápido del Libro Mayor) permite ingresar el **N° de talonario** físico. Si el método es Transferencia, se habilita un botón para **adjuntar el comprobante** (imagen o PDF), que se sube a Supabase Storage en `comprobantes/{pedidoId}_{timestamp}.ext`. El talonario y el link "Ver comprobante" aparecen en cada fila del historial de movimientos (tanto en el modal de Pagos como en el historial colapsable de las cards de búsqueda).
 - [x] **Confección por Lotes (`Confeccion.jsx`):** Cards agrupadas por lote (igual que Corte). Estados: `Corte Finalizado` → `En Confección` → `Confección Finalizada`. Swipe táctil (derecha = avanzar, izquierda = retroceder) + Drag & Drop HTML5 entre columnas kanban. Columnas: Cola (Corte Finalizado), En Confección, Finalizada. Vista de detalle al tocar/hacer click en la card (imagen, talles, lista de pedidos, acciones masivas e individuales).
 - [x] **Bordado por Lotes (`Bordado.jsx`) — Modelo híbrido lote+individual:** Reescritura completa. Los pedidos se agrupan por `institucion_id + grado + tipo_prenda`. Columnas kanban: Cola (lotes donde ningún pedido está en bordado), En Bordado (al menos 1 pedido en bordado), Finalizado (todos los pedidos bordados). Swipe táctil + Drag & Drop entre columnas. **Vista detalle del lote:** header escuela+grado, barra de progreso amarilla, lista scrollable de `nombre_bordado` (cada fila: ícono círculo/check, nombre bordado en amarillo grande, nombre cliente, ícono alerta si hay obs). **Modal nombre bordado:** overlay con el texto a bordar en 3rem + botón "Marcar como Bordado" / "Reabrir". Acciones del lote: "Iniciar Bordado del Lote", "Finalizar Lote · N pendientes", "Devolver lote a cola".
+- [x] **Prioridad por tipo de prenda — `prioridad_chomba` / `prioridad_campera` (Corte, Confección, Bordado):** Cada lote tiene prioridades independientes por tipo de prenda. En RecepcionLote hay un selector de prioridad separado en la pestaña Chomba y en la pestaña Campera. En las secciones kanban de Corte, Confección y Bordado cada card usa la prioridad del campo correspondiente a su `tipo_prenda`. La barra de color en la parte superior de la card refleja esa prioridad específica. Constantes usadas en todos los módulos: `PRIORIDAD_ORDEN = { urgente:0, alta:1, media:2, baja:3, ninguna:4 }` y `PRIORIDAD_COLORS = { urgente:'#EF4444', alta:'#10B981', media:'#FACC15', baja:'#94A3B8', ninguna:'transparent' }`.
+- [x] **Excluir/Reincorporar prendas del lote (Confección y Bordado) — Solo admin:** El admin puede excluir prendas individuales de un lote activo (campo `pausado = true` en `pedidos`). Comportamiento:
+  - Las prendas excluidas **no cuentan** para la columna kanban del lote ni para el progreso visible.
+  - Los **empleados** ven solo el conteo activo sin ninguna indicación de prendas excluidas (vista limpia).
+  - El **admin** ve en Confección: sección "Gestión de prendas" en la vista de detalle, con botón **Excluir** (rojo) para prendas activas no finalizadas y **Reincorporar** (verde) para las excluidas. Label "EXCLUIDA" sobre el ítem.
+  - El **admin** ve en Bordado: lista de ítems completa incluyendo excluidos (con label `EXCLUIDA`), mismos botones Excluir/Reincorporar. Los empleados ven solo ítems activos en esa lista.
+  - Badge `⏸ N` en la card (solo visible para el admin) indica cuántas prendas están excluidas.
+  - El texto de progreso muestra `(N excluidas)` solo para el admin.
+  - Un lote con todos los pedidos excluidos en Bordado queda en la columna Cola (no desaparece del kanban). Requiere la columna `pausado BOOLEAN DEFAULT false` en la tabla `pedidos`.
 - [x] **Sidebar:** "Recepción" (`/pedidos`) desactivada temporalmente (comentada en `Sidebar.jsx`). El componente y la ruta siguen existiendo para reactivación futura.
 - [x] **Edición de pedidos en RecepcionLote:** Ícono lápiz por fila de pedido (visible solo cuando `estado` es `Pendiente` o `Autorizado`). Modal que permite editar `talle` (select predefinido) y `nombre_bordado` (text input). Guarda directo a Supabase y actualiza estado local.
 - [x] **Lotes recientes en RecepcionLote:** Panel lateral "Vistos recientemente" con hasta 3 lotes. Se persiste en `localStorage` (`prius_lotes_recientes`). Layout 2 columnas en desktop (formulario izq, recientes der). Click directo en una card abre el lote sin necesidad de completar el formulario.
@@ -278,3 +303,22 @@ Para que las actualizaciones instantáneas funcionen en todas las pantallas (Cor
 - El combobox usa `onBlur` + `setTimeout(..., 150)` para ocultar el dropdown. El delay permite que el `onMouseDown` de las opciones se ejecute antes del blur (sin ese delay, el click no llega).
 - Usar `onMouseDown` (no `onClick`) en las opciones del dropdown para que el evento ocurra antes del blur del input.
 - El estado `filtroInstitucion` guarda el UUID; `filtroInstitucionInput` guarda el texto visible en el input.
+
+### Prioridad por tipo de prenda
+- Los campos `prioridad_chomba` y `prioridad_campera` están en la tabla `lotes`, no en `pedidos`.
+- En `agruparPorLote()` (Corte, Confección, Bordado), cada grupo toma su prioridad del campo correspondiente a `tipo_prenda`: `tipo_prenda === 'Chomba' ? lote.prioridad_chomba : lote.prioridad_campera`.
+- En RecepcionLote, `cambiarPrioridadTipo(tipo, valor)` actualiza directamente el campo `prioridad_chomba` o `prioridad_campera` en Supabase y en el state local.
+- El selector de prioridad se renderiza condicionalmente dentro del tab activo (Chomba o Campera), no fuera de las tabs.
+- `getLoteKey(g)`: `g.grado ? (g.pedidos[0]?.institucion_id + '|' + g.grado + '|' + g.tipo_prenda) : ('ind|' + g.pedidos[0]?.id)` — clave única por grupo incluyendo el tipo de prenda.
+
+### Excluir/Reincorporar prendas (pausado)
+- `esAdmin` se computa inline: `const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';` — fuera del JSX, dentro del componente funcional.
+- `cambiarPausado(id, valor)` hace `UPDATE pedidos SET pausado = valor WHERE id = id` y usa el patrón `skipRealtimeCountRef` para evitar el re-fetch del propio cambio.
+- **Lógica de columnas con prendas excluidas:**
+  - Confección: `const nonPausedTodos = pedidosTodos.filter(p => !p.pausado)` — las 3 columnas usan este array filtrado.
+  - Bordado: por grupo, `const np = g.pedidos.filter(p => !p.pausado)`. Si `np.length === 0` (todos excluidos), el grupo va a Cola.
+- **Vista de detalle:** `total`, `finalizados`, `enConfeccion`/`enBordado`, `porConfeccionar`/`enCola` usan siempre solo los no pausados. `pausados` es el array complementario, solo para mostrarlos al admin.
+- **Admin UI en Confección:** sección "Gestión de prendas" envuelta en `{esAdmin && (...)}`. Muestra todos los pedidos del grupo (incluidos excluidos). Botón **Excluir** (rojo) para activos no finalizados; botón **Reincorporar** (verde) para excluidos; label "EXCLUIDA" en los excluidos.
+- **Admin UI en Bordado:** la lista de ítems usa `(esAdmin ? pedidosDelGrupo : pedidosDelGrupo.filter(p => !p.pausado)).map(...)`. Los botones Excluir/Reincorporar están dentro de `{esAdmin && !done && (...)}`.
+- **Badge en card:** `{esAdmin && pausadosCount > 0 && <span>⏸ N</span>}` — visible solo para el admin.
+- **Regla visual:** los empleados nunca ven la cantidad real de prendas del lote si hay excluidas; solo ven la cantidad activa.
