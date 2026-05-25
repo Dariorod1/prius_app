@@ -167,6 +167,14 @@ INSERT INTO public.pedidos (cliente_dni, institucion_id, tipo_prenda, talle, nom
     ('28765432', '22222222-2222-2222-2222-222222222222', 'Chomba Tradicional', 'XL', null, '', 12000, 12000, 'Autorizado'),
     ('35123456', '33333333-3333-3333-3333-333333333333', 'Campera Polar', 'L', 'TORRES', 'Puño más ajustado', 40000, 40000, 'Confeccionado');
 
+
+ALTER TABLE lotes ADD COLUMN IF NOT EXISTS prioridad_chomba TEXT DEFAULT 'ninguna';
+ALTER TABLE lotes ADD COLUMN IF NOT EXISTS prioridad_campera TEXT DEFAULT 'ninguna';
+
+-- Migrar lotes que ya tenían prioridad asignada (aplica la misma a Chomba y Campera)
+UPDATE lotes
+SET prioridad_chomba = prioridad, prioridad_campera = prioridad
+WHERE prioridad IS NOT NULL AND prioridad != 'ninguna';
 -- ==========================================
 -- RESET DE DATOS OPERATIVOS
 -- (Ejecutar en Supabase Dashboard → SQL Editor)

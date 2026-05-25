@@ -86,17 +86,22 @@ const Confeccion = () => {
   const agruparPorLote = (pedidos) => {
     const grupos = {};
     pedidos.forEach(p => {
-      if (!p.grado) { grupos['individual_' + p.id] = { pedidos: [p], tipo_prenda: p.tipo_prenda, institucion: p.instituciones?.nombre, grado: null, lote: null }; return; }
+      if (!p.grado) { grupos['individual_' + p.id] = { pedidos: [p], tipo_prenda: p.tipo_prenda, institucion: p.instituciones?.nombre, grado: null, lote: null, prioridad: 'ninguna' }; return; }
       const key = p.institucion_id + '_' + p.grado + '_' + p.tipo_prenda;
       if (!grupos[key]) {
         const lote = lotes.find(l => l.institucion_id === p.institucion_id && l.grado === p.grado);
-        grupos[key] = { pedidos: [], tipo_prenda: p.tipo_prenda, institucion: p.instituciones?.nombre, grado: p.grado, lote: lote || null };
+        const prioridad = p.tipo_prenda === 'Chomba'
+          ? (lote?.prioridad_chomba || lote?.prioridad || 'ninguna')
+          : (p.tipo_prenda === 'Campera'
+            ? (lote?.prioridad_campera || lote?.prioridad || 'ninguna')
+            : (lote?.prioridad || 'ninguna'));
+        grupos[key] = { pedidos: [], tipo_prenda: p.tipo_prenda, institucion: p.instituciones?.nombre, grado: p.grado, lote: lote || null, prioridad };
       }
       grupos[key].pedidos.push(p);
     });
     return Object.values(grupos).sort((a, b) => {
-      const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
-      const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+      const pa = PRIORIDAD_ORDEN[a.prioridad] ?? 4;
+      const pb = PRIORIDAD_ORDEN[b.prioridad] ?? 4;
       if (pa !== pb) return pa - pb;
       return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
     });
@@ -118,8 +123,8 @@ const Confeccion = () => {
   const priorNumMap = new Map(
     [...colaLotes, ...enProgresoLotes]
       .sort((a, b) => {
-        const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
-        const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+        const pa = PRIORIDAD_ORDEN[a.prioridad] ?? 4;
+        const pb = PRIORIDAD_ORDEN[b.prioridad] ?? 4;
         if (pa !== pb) return pa - pb;
         return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
       })
@@ -249,7 +254,7 @@ const Confeccion = () => {
   const CardLote = ({ grupo, color, forwardEstado, backEstado, priorityNum }) => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
-    const prioridadColor = loteInfo?.prioridad ? PRIORIDAD_COLORS[loteInfo.prioridad] : 'transparent';
+    const prioridadColor = grupo.prioridad && grupo.prioridad !== 'ninguna' ? PRIORIDAD_COLORS[grupo.prioridad] : 'transparent';
     const cantidad = grupo.pedidos.length;
     const esIndividual = !grupo.grado;
     const cardRef = useRef(null);

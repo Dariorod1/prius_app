@@ -34,7 +34,8 @@ const RecepcionLote = () => {
   const [loteId, setLoteId] = useState(null);
   const [imagenChomba, setImagenChomba] = useState('');
   const [imagenCampera, setImagenCampera] = useState('');
-  const [prioridad, setPrioridad] = useState('ninguna');
+  const [prioridadChomba, setPrioridadChomba] = useState('ninguna');
+  const [prioridadCampera, setPrioridadCampera] = useState('ninguna');
   const [uploadingChomba, setUploadingChomba] = useState(false);
   const [uploadingCampera, setUploadingCampera] = useState(false);
   const [selectedPedidos, setSelectedPedidos] = useState([]);
@@ -140,13 +141,14 @@ const RecepcionLote = () => {
       setLoteId(loteData.id);
       setImagenChomba(loteData.imagen_chomba_url || '');
       setImagenCampera(loteData.imagen_campera_url || '');
-      setPrioridad(loteData.prioridad || 'ninguna');
+      setPrioridadChomba(loteData.prioridad_chomba || loteData.prioridad || 'ninguna');
+      setPrioridadCampera(loteData.prioridad_campera || loteData.prioridad || 'ninguna');
       setPrecioLoteChomba(loteData.precio_chomba != null ? String(loteData.precio_chomba) : '');
       setPrecioLoteCampera(loteData.precio_campera != null ? String(loteData.precio_campera) : '');
     } else {
       const { data: nuevoLote } = await supabase
         .from('lotes')
-        .insert({ institucion_id: instId, grado: gr, prioridad: 'ninguna' })
+        .insert({ institucion_id: instId, grado: gr, prioridad_chomba: 'ninguna', prioridad_campera: 'ninguna' })
         .select()
         .single();
       if (nuevoLote) setLoteId(nuevoLote.id);
@@ -362,10 +364,15 @@ const RecepcionLote = () => {
     setMensaje({ tipo: 'success', texto: 'Imagen eliminada.' });
   };
 
-  const cambiarPrioridad = async (nuevaPrioridad) => {
+  const cambiarPrioridadTipo = async (tipo, valor) => {
     if (!loteId) return;
-    setPrioridad(nuevaPrioridad);
-    await supabase.from('lotes').update({ prioridad: nuevaPrioridad }).eq('id', loteId);
+    if (tipo === 'chomba') {
+      setPrioridadChomba(valor);
+      await supabase.from('lotes').update({ prioridad_chomba: valor }).eq('id', loteId);
+    } else {
+      setPrioridadCampera(valor);
+      await supabase.from('lotes').update({ prioridad_campera: valor }).eq('id', loteId);
+    }
   };
 
   // Datos derivados
@@ -469,16 +476,41 @@ const RecepcionLote = () => {
     const pendientes = lista.filter(p => p.estado === 'Pendiente');
     const seleccionadosTab = selectedPedidos.filter(id => lista.some(p => p.id === id && p.estado === 'Pendiente'));
     const todosSeleccionados = pendientes.length > 0 && pendientes.every(p => selectedPedidos.includes(p.id));
+    const tipoPrioridad = tabActiva === 'Chomba' ? 'chomba' : 'campera';
+    const currentPrioridad = tabActiva === 'Chomba' ? prioridadChomba : prioridadCampera;
+    const PRIORIDAD_DOT = { urgente: '#EF4444', alta: '#10B981', media: '#FACC15', baja: '#94A3B8' };
+    const priorityHeader = (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '0.75rem', gap: '6px' }}>
+        {PRIORIDAD_DOT[currentPrioridad] && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: PRIORIDAD_DOT[currentPrioridad], flexShrink: 0, display: 'inline-block' }} />}
+        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Prioridad {tabActiva}:</label>
+        <select
+          className="form-control"
+          value={currentPrioridad}
+          onChange={(e) => cambiarPrioridadTipo(tipoPrioridad, e.target.value)}
+          style={{ width: '115px', fontSize: '0.8rem' }}
+        >
+          <option value="ninguna">Sin prioridad</option>
+          <option value="baja">Baja</option>
+          <option value="media">Media</option>
+          <option value="alta">Alta</option>
+          <option value="urgente">Urgente</option>
+        </select>
+      </div>
+    );
 
     if (lista.length === 0) {
       return (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-          No hay {tabActiva === 'Chomba' ? 'chombas' : 'camperas'} cargadas a\u00fan.
+        <div>
+          {priorityHeader}
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
+            No hay {tabActiva === 'Chomba' ? 'chombas' : 'camperas'} cargadas aún.
+          </div>
         </div>
       );
     }
     return (
       <div>
+        {priorityHeader}
         {/* Barra de acciones */}
         {pendientes.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
@@ -841,16 +873,6 @@ const RecepcionLote = () => {
           <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Campera $</label>
           <input type="number" className="form-control" placeholder="0" value={precioLoteCampera} onChange={(e) => { setPrecioLoteCampera(e.target.value); setForm(prev => ({ ...prev, campera_precio: e.target.value })); }} onBlur={(e) => guardarPrecioLote('precio_campera', e.target.value)} style={{ width: '100px' }} />
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Prioridad:</label>
-          <select className="form-control" value={prioridad} onChange={(e) => cambiarPrioridad(e.target.value)} style={{ width: '110px' }}>
-            <option value="ninguna">Ninguna</option>
-            <option value="baja">Baja</option>
-            <option value="media">Media</option>
-            <option value="alta">Alta</option>
-            <option value="urgente">Urgente</option>
-          </select>
-        </div>
       </div>
 
       {/* Imágenes del lote */}
@@ -908,7 +930,7 @@ const RecepcionLote = () => {
           className="btn btn-primary"
           onClick={async () => {
             if (!loteId) return;
-            await supabase.from('lotes').update({ prioridad, imagen_chomba_url: imagenChomba || null, imagen_campera_url: imagenCampera || null }).eq('id', loteId);
+            await supabase.from('lotes').update({ imagen_chomba_url: imagenChomba || null, imagen_campera_url: imagenCampera || null }).eq('id', loteId);
             setMensaje({ tipo: 'success', texto: 'Imágenes guardadas.' });
           }}
           style={{ padding: '0.6rem 1.5rem', fontSize: '0.85rem' }}

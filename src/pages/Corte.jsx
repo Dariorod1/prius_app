@@ -152,20 +152,26 @@ const Corte = () => {
       const key = p.institucion_id + '_' + p.grado + '_' + p.tipo_prenda;
       if (!grupos[key]) {
         const lote = lotes.find(l => l.institucion_id === p.institucion_id && l.grado === p.grado);
+        const prioridad = p.tipo_prenda === 'Chomba'
+          ? (lote?.prioridad_chomba || lote?.prioridad || 'ninguna')
+          : (p.tipo_prenda === 'Campera'
+            ? (lote?.prioridad_campera || lote?.prioridad || 'ninguna')
+            : (lote?.prioridad || 'ninguna'));
         grupos[key] = {
           pedidos: [],
           tipo_prenda: p.tipo_prenda,
           institucion: p.instituciones?.nombre,
           grado: p.grado,
-          lote: lote || null
+          lote: lote || null,
+          prioridad
         };
       }
       grupos[key].pedidos.push(p);
     });
     // Ordenar por prioridad
     return Object.values(grupos).sort((a, b) => {
-      const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
-      const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+      const pa = PRIORIDAD_ORDEN[a.prioridad] ?? 4;
+      const pb = PRIORIDAD_ORDEN[b.prioridad] ?? 4;
       if (pa !== pb) return pa - pb;
       return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
     });
@@ -201,8 +207,8 @@ const Corte = () => {
   const priorNumMap = new Map(
     [...colaLotes, ...enProgresoLotes]
       .sort((a, b) => {
-        const pa = PRIORIDAD_ORDEN[a.lote?.prioridad || 'ninguna'] ?? 4;
-        const pb = PRIORIDAD_ORDEN[b.lote?.prioridad || 'ninguna'] ?? 4;
+        const pa = PRIORIDAD_ORDEN[a.prioridad] ?? 4;
+        const pb = PRIORIDAD_ORDEN[b.prioridad] ?? 4;
         if (pa !== pb) return pa - pb;
         return (a.pedidos[0]?.fecha_creacion || '').localeCompare(b.pedidos[0]?.fecha_creacion || '');
       })
@@ -281,9 +287,9 @@ const Corte = () => {
         <div style={{ marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '4px' }}>
             <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: '800' }}>{grupo.tipo_prenda}</h2>
-            {loteInfo?.prioridad && loteInfo.prioridad !== 'ninguna' && (
-              <span style={{ padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: PRIORIDAD_COLORS[loteInfo.prioridad] + '20', color: PRIORIDAD_COLORS[loteInfo.prioridad], letterSpacing: '-0.5px' }}>
-                {priorNumMap.get(getLoteKey(grupo)) ? '#' + priorNumMap.get(getLoteKey(grupo)) : PRIORIDAD_LABELS[loteInfo.prioridad]}
+            {grupo.prioridad && grupo.prioridad !== 'ninguna' && (
+              <span style={{ padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: PRIORIDAD_COLORS[grupo.prioridad] + '20', color: PRIORIDAD_COLORS[grupo.prioridad], letterSpacing: '-0.5px' }}>
+                {priorNumMap.get(getLoteKey(grupo)) ? '#' + priorNumMap.get(getLoteKey(grupo)) : PRIORIDAD_LABELS[grupo.prioridad]}
               </span>
             )}
           </div>
@@ -387,7 +393,7 @@ const Corte = () => {
   const CardLote = ({ grupo, color, forwardEstado, backEstado, priorityNum }) => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
-    const prioridadColor = loteInfo?.prioridad ? PRIORIDAD_COLORS[loteInfo.prioridad] : 'transparent';
+    const prioridadColor = grupo.prioridad && grupo.prioridad !== 'ninguna' ? PRIORIDAD_COLORS[grupo.prioridad] : 'transparent';
     const cantidad = grupo.pedidos.length;
     const esIndividual = !grupo.grado;
     const cardRef = useRef(null);
