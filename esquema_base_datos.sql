@@ -46,7 +46,8 @@ CREATE TABLE public.pedidos (
     tipo_prenda TEXT NOT NULL,
     talle TEXT NOT NULL,
     nombre_bordado TEXT,
-    observaciones TEXT, -- Notas, alteraciones, puños, etc.
+    observaciones TEXT, -- Notas de confección: alteraciones, puños, ruedos, etc.
+    observaciones_bordado TEXT, -- Notas específicas de bordado: ej "No bordar promo 26"
     precio_total NUMERIC NOT NULL DEFAULT 0,
     monto_pagado NUMERIC NOT NULL DEFAULT 0,
     estado TEXT NOT NULL DEFAULT 'Pendiente'
@@ -192,6 +193,25 @@ ALTER TABLE public.lotes ADD CONSTRAINT lotes_institucion_id_grado_anio_key UNIQ
 -- CAMPO PAUSADO EN PEDIDOS (excluir prendas del lote activo)
 -- ==========================================
 ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS pausado BOOLEAN DEFAULT false;
+
+-- ==========================================
+-- CAMPO OBSERVACIONES_BORDADO EN PEDIDOS (notas específicas de bordado)
+-- ==========================================
+ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS observaciones_bordado TEXT DEFAULT NULL;
+
+-- ==========================================
+-- CAMPO LOTE_ID EN PEDIDOS (vincula pedido a un lote específico, incluye año)
+-- ==========================================
+ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS lote_id UUID REFERENCES public.lotes(id) ON DELETE SET NULL;
+
+-- Migrar pedidos existentes: asignar lote_id basado en institucion_id + grado
+UPDATE public.pedidos p
+SET lote_id = l.id
+FROM public.lotes l
+WHERE p.institucion_id = l.institucion_id
+  AND p.grado = l.grado
+  AND p.lote_id IS NULL;
+
 -- ==========================================
 -- RESET DE DATOS OPERATIVOS
 -- (Ejecutar en Supabase Dashboard → SQL Editor)

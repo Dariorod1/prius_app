@@ -77,11 +77,13 @@ const RecepcionLoteV2 = () => {
     chomba_bordado: '',
     chomba_precio: '',
     chomba_observaciones: '',
+    chomba_obs_bordado: '',
     quiereCampera: false,
     campera_talle: '',
     campera_bordado: '',
     campera_precio: '',
     campera_observaciones: '',
+    campera_obs_bordado: '',
     monto_pagado: ''
   });
 
@@ -133,6 +135,8 @@ const RecepcionLoteV2 = () => {
     setAnio(anioFinal);
     setLoading(true);
 
+    let currentLoteId = null;
+
     const { data: loteData } = await supabase
       .from('lotes')
       .select('*')
@@ -142,6 +146,7 @@ const RecepcionLoteV2 = () => {
       .single();
 
     if (loteData) {
+      currentLoteId = loteData.id;
       setLoteId(loteData.id);
       setImagenChomba(loteData.imagen_chomba_url || '');
       setImagenCampera(loteData.imagen_campera_url || '');
@@ -155,14 +160,13 @@ const RecepcionLoteV2 = () => {
         .insert({ institucion_id: instId, grado: gr, anio: anioFinal, prioridad_chomba: 'ninguna', prioridad_campera: 'ninguna' })
         .select()
         .single();
-      if (nuevoLote) setLoteId(nuevoLote.id);
+      if (nuevoLote) { currentLoteId = nuevoLote.id; setLoteId(nuevoLote.id); }
     }
 
     const { data, error } = await supabase
       .from('pedidos')
       .select('*, clientes(nombre, dni)')
-      .eq('institucion_id', instId)
-      .eq('grado', gr)
+      .eq('lote_id', currentLoteId)
       .order('fecha_creacion', { ascending: true });
 
     if (!error && data) setPedidosLote(data);
@@ -189,8 +193,8 @@ const RecepcionLoteV2 = () => {
   const resetForm = () => {
     setForm({
       dni: '', nombre: '', telefono: '',
-      quiereChomba: true, chomba_talle: '', chomba_bordado: '', chomba_precio: precioLoteChomba, chomba_observaciones: '',
-      quiereCampera: false, campera_talle: '', campera_bordado: '', campera_precio: precioLoteCampera, campera_observaciones: '',
+      quiereChomba: true, chomba_talle: '', chomba_bordado: '', chomba_precio: precioLoteChomba, chomba_observaciones: '', chomba_obs_bordado: '',
+      quiereCampera: false, campera_talle: '', campera_bordado: '', campera_precio: precioLoteCampera, campera_observaciones: '', campera_obs_bordado: '',
       monto_pagado: ''
     });
     setClienteExistente(false);
@@ -234,10 +238,12 @@ const RecepcionLoteV2 = () => {
           cliente_dni: form.dni.trim(),
           institucion_id: institucionId,
           grado: grado,
+          lote_id: loteId,
           tipo_prenda: 'Chomba',
           talle: form.chomba_talle,
           nombre_bordado: form.chomba_bordado || null,
           observaciones: form.chomba_observaciones || null,
+          observaciones_bordado: form.chomba_obs_bordado || null,
           precio_total: precioChomba,
           monto_pagado: pagoChomba,
           estado: 'Pendiente'
@@ -248,10 +254,12 @@ const RecepcionLoteV2 = () => {
           cliente_dni: form.dni.trim(),
           institucion_id: institucionId,
           grado: grado,
+          lote_id: loteId,
           tipo_prenda: 'Campera',
           talle: form.campera_talle,
           nombre_bordado: form.campera_bordado || null,
           observaciones: form.campera_observaciones || null,
+          observaciones_bordado: form.campera_obs_bordado || null,
           precio_total: precioCampera,
           monto_pagado: pagoCampera,
           estado: 'Pendiente'
@@ -359,13 +367,16 @@ const RecepcionLoteV2 = () => {
   const totalCobrado = pedidosLote.reduce((s, p) => s + (p.monto_pagado || 0), 0);
   const porcentajeCobrado = totalMonto > 0 ? (totalCobrado / totalMonto) * 100 : 0;
 
-  // Última modificación
-  const ultimaModificacion = pedidosLote.length > 0
-    ? pedidosLote.reduce((max, p) => {
+  // Última modificación + último alumno cargado
+  const ultimoPedido = pedidosLote.length > 0
+    ? pedidosLote.reduce((ultimo, p) => {
         const f = new Date(p.fecha_creacion);
-        return f > max ? f : max;
-      }, new Date(0))
+        const fUltimo = new Date(ultimo.fecha_creacion);
+        return f > fUltimo ? p : ultimo;
+      }, pedidosLote[0])
     : null;
+  const ultimaModificacion = ultimoPedido ? new Date(ultimoPedido.fecha_creacion) : null;
+  const ultimoAlumnoNombre = ultimoPedido?.clientes?.nombre || ultimoPedido?.cliente_dni || null;
 
   // ======= SELECTOR DE LOTE =======
   if (!loteActivo) {
@@ -653,7 +664,11 @@ const RecepcionLoteV2 = () => {
                   </div>
                   <div style={{ gridColumn: 'span 3' }}>
                     <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Observaciones</label>
-                    <input type="text" className="form-control" placeholder="Opcional" value={form.chomba_observaciones} onChange={(e) => setForm(prev => ({ ...prev, chomba_observaciones: e.target.value }))} style={{ fontSize: '0.85rem' }} />
+                    <input type="text" className="form-control" placeholder="Confección (ruedos, puños...)" value={form.chomba_observaciones} onChange={(e) => setForm(prev => ({ ...prev, chomba_observaciones: e.target.value }))} style={{ fontSize: '0.85rem' }} />
+                  </div>
+                  <div style={{ gridColumn: 'span 3' }}>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: '#A78BFA', marginBottom: '2px' }}>Obs. Bordado</label>
+                    <input type="text" className="form-control" placeholder="Ej: No bordar promo 26" value={form.chomba_obs_bordado} onChange={(e) => setForm(prev => ({ ...prev, chomba_obs_bordado: e.target.value }))} style={{ fontSize: '0.85rem' }} />
                   </div>
                 </div>
               )}
@@ -685,7 +700,11 @@ const RecepcionLoteV2 = () => {
                   </div>
                   <div style={{ gridColumn: 'span 3' }}>
                     <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Observaciones</label>
-                    <input type="text" className="form-control" placeholder="Opcional" value={form.campera_observaciones} onChange={(e) => setForm(prev => ({ ...prev, campera_observaciones: e.target.value }))} style={{ fontSize: '0.85rem' }} />
+                    <input type="text" className="form-control" placeholder="Confección (ruedos, puños...)" value={form.campera_observaciones} onChange={(e) => setForm(prev => ({ ...prev, campera_observaciones: e.target.value }))} style={{ fontSize: '0.85rem' }} />
+                  </div>
+                  <div style={{ gridColumn: 'span 3' }}>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: '#A78BFA', marginBottom: '2px' }}>Obs. Bordado</label>
+                    <input type="text" className="form-control" placeholder="Ej: No bordar promo 26" value={form.campera_obs_bordado} onChange={(e) => setForm(prev => ({ ...prev, campera_obs_bordado: e.target.value }))} style={{ fontSize: '0.85rem' }} />
                   </div>
                 </div>
               )}
@@ -843,10 +862,17 @@ const RecepcionLoteV2 = () => {
 
       {/* ===== ÚLTIMA MODIFICACIÓN ===== */}
       {ultimaModificacion && (
-        <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          <Clock size={13} />
-          Última carga: {ultimaModificacion.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })} a las {ultimaModificacion.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-          {user && <span style={{ marginLeft: '4px' }}>por <strong style={{ color: 'var(--text-main)' }}>{user.username}</strong></span>}
+        <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Clock size={13} />
+            Última carga: {ultimaModificacion.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })} a las {ultimaModificacion.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+            {user && <span style={{ marginLeft: '4px' }}>por <strong style={{ color: 'var(--text-main)' }}>{user.username}</strong></span>}
+          </div>
+          {ultimoAlumnoNombre && (
+            <div style={{ paddingLeft: '19px' }}>
+              Último alumno: <strong style={{ color: 'var(--text-main)' }}>{ultimoAlumnoNombre}</strong>
+            </div>
+          )}
         </div>
       )}
     </div>

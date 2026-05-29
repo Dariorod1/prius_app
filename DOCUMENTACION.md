@@ -105,13 +105,15 @@ El corazón del sistema.
     - `precio_total`: Monto acordado.
     - `monto_pagado`: Suma de todos los pagos realizados.
     - `grado`: (Text, opcional) Grado/división del lote al que pertenece. Si es null, es un pedido individual.
-    - `observaciones`: Notas, alteraciones, puños, etc.
-    - `pausado`: (Boolean, DEFAULT false) Si es `true`, la prenda está **excluida** del lote activo. Las prendas excluidas no cuentan para la columna kanban ni para el progreso visible a los empleados. Solo el admin puede excluir/reincorporar prendas.
-- **Ejemplo:** `{ tipo_prenda: 'Chomba', talle: 'L', grado: '3er Grado A', precio_total: 25000, monto_pagado: 12500, estado: 'Autorizado', pausado: false }`
+    - `observaciones`: Notas generales de confección (alteraciones, puños, ruedos, etc.).
+    - `observaciones_bordado`: (Text, opcional) Notas específicas para la sección de bordado (ej: "No bordar promo 26", "Solo bordar nombre"). Se muestra en violeta en la vista de bordado, separada de las observaciones generales.
+    - `pausado`: (Boolean, DEFAULT false) Si es `true`, la prenda está **excluida** del lote activo. Las prendas excluidas no cuentan para la columna kanban ni para el progreso. Cualquier rol puede excluir/reincorporar.
+- **Ejemplo:** `{ tipo_prenda: 'Chomba', talle: 'L', grado: '3er Grado A', precio_total: 25000, monto_pagado: 12500, estado: 'Autorizado', pausado: false, observaciones_bordado: null }`
 
 > **SQL de migración:**
 > ```sql
 > ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pausado BOOLEAN DEFAULT false;
+> ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS observaciones_bordado TEXT DEFAULT NULL;
 > ```
 
 ### 4.6 Lotes (`lotes`)
@@ -163,11 +165,14 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
    - **Lote unificado:** Si se finaliza una prenda individual, la card del lote permanece en "En Corte" hasta que TODAS estén finalizadas. Se muestra progreso "2/5 finalizadas".
    Al iniciar, el pedido pasa a `En Corte`. Al terminar, a `Corte Finalizado`.
 2. **Confección:** El confeccionador toma los `Corte Finalizado`. Inicia (`En Confección`) y termina (`Confección Finalizada`). Las cards se ordenan por prioridad de la prenda correspondiente (`prioridad_chomba` o `prioridad_campera` según el `tipo_prenda` del grupo). El **admin** puede **excluir prendas** del lote desde la sección "Gestión de prendas" en la vista de detalle.
-3. **Bordado:** El bordador toma los `Confección Finalizada`. Los pedidos se agrupan por **lote** (escuela + grado + tipo_prenda). El seguimiento es **híbrido lote+individual**. Las cards se ordenan por prioridad de la prenda (`prioridad_chomba` / `prioridad_campera`). El **admin** puede excluir/reincorporar prendas individuales desde la lista de detalle.
+3. **Bordado:** El bordador toma los `Confección Finalizada`. Los pedidos se agrupan por **lote** (escuela + grado + tipo_prenda). El seguimiento es **híbrido lote+individual**. Las cards se ordenan por prioridad de la prenda (`prioridad_chomba` / `prioridad_campera`). Cualquier rol puede excluir/reincorporar prendas individuales desde la lista de detalle.
    - La columna **Cola** muestra lotes donde ningún pedido está en `En Bordado` ni `Bordado Finalizado`.
    - La columna **En Bordado** muestra lotes donde al menos 1 pedido está en `En Bordado`.
    - La columna **Finalizado** muestra lotes donde todos los pedidos están en `Bordado Finalizado`.
-   - Al tocar/hacer click en una card, se abre la **vista detalle** con lista de `nombre_bordado` individuales. Cada ítem tiene un ícono de estado y se puede tocar para abrir el **modal nombre**, que muestra el texto a bordar en grande (3rem) y permite marcar/desmarcar ese pedido individual.
+   - Al tocar/hacer click en una card, se abre la **vista detalle** con los items **agrupados por talle**. Cada grupo muestra el badge de talle (ej: `S`, `M`, `L`) de forma prominente y lista las prendas debajo. Las **observaciones** (de confección y de bordado) se muestran inline siempre visibles, sin necesidad de abrir el modal.
+   - Prioridad de visibilidad en la lista: 1) Talle, 2) Observaciones/aclaraciones, 3) Nombre a bordar, 4) Nombre completo del alumno.
+   - Campo `observaciones_bordado`: Nota específica de bordado (ej: "No bordar promo 26"), separada de las observaciones generales de confección. Se muestra en violeta (`#A78BFA`) para diferenciarla.
+   - Al tocar un ítem, se abre el **modal nombre** que muestra el texto a bordar en grande (3rem), el talle, ambas observaciones, y permite marcar/desmarcar el pedido.
    - Acciones del lote: "Iniciar Bordado del Lote" (mueve todos los de la cola a En Bordado), "Finalizar Lote · N pendientes" (mueve todos los En Bordado a Bordado Finalizado), "Devolver lote a cola". Cada cambio se registra en `pedido_estado_log`.
 4. **Entrega:** Gestionada desde el módulo de **Cobranzas** (`Pagos.jsx`). El botón "Entregar Pedido" aparece sobre la card del pedido únicamente cuando se cumplen **ambas** condiciones simultáneamente:
    - `monto_pagado >= precio_total` (100% pagado).

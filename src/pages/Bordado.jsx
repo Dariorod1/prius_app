@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Sparkles, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, X, ArrowLeft, PauseCircle } from 'lucide-react';
+import { Sparkles, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, X, ArrowLeft, PauseCircle, ChevronDown, ChevronRight } from 'lucide-react';
 
 const ESTADOS_COLA = ['Confección Finalizada'];
 const ESTADOS_EN_PROGRESO = ['En Bordado'];
@@ -27,6 +27,7 @@ const Bordado = () => {
   const realtimeDebounceRef = useRef(null);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
+  const [tallesAbiertos, setTallesAbiertos] = useState({});
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -210,12 +211,21 @@ const Bordado = () => {
           </div>
 
           {pedido.observaciones && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1.5rem', color: '#F87171', fontSize: '0.95rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '0.75rem', color: '#F87171', fontSize: '0.95rem' }}>
               <AlertTriangle size={16} style={{ flexShrink: 0 }} /> {pedido.observaciones}
             </div>
           )}
 
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+          {pedido.observaciones_bordado && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1.5rem', color: '#A78BFA', fontSize: '0.95rem' }}>
+              <Sparkles size={16} style={{ flexShrink: 0 }} /> {pedido.observaciones_bordado}
+            </div>
+          )}
+
+          {!pedido.observaciones && !pedido.observaciones_bordado && <div style={{ marginBottom: '1.5rem' }} />}
+
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ background: '#FACC15', color: '#000', fontWeight: '800', fontSize: '0.85rem', padding: '3px 10px', borderRadius: '6px' }}>{pedido.talle}</span>
             Cliente: <strong style={{ color: 'var(--text-main)' }}>{pedido.clientes?.nombre}</strong>
           </div>
 
@@ -293,44 +303,107 @@ const Bordado = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem' }}>
-          {pedidosDelGrupo.map(pedido => {
-            const done = ESTADOS_TERMINADO.includes(pedido.estado);
-            const enProg = ESTADOS_EN_PROGRESO.includes(pedido.estado);
-            const esPausado = !!pedido.pausado;
-            return (
-              <div
-                key={pedido.id}
-                onClick={() => !esPausado && setModalNombre(pedido)}
-                style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.9rem 1rem', background: esPausado ? 'rgba(148,163,184,0.05)' : (done ? 'rgba(16,185,129,0.07)' : 'var(--bg-sidebar)'), borderRadius: '12px', border: '1px solid ' + (esPausado ? 'rgba(148,163,184,0.2)' : (done ? 'rgba(16,185,129,0.25)' : 'var(--border-color)')), cursor: esPausado ? 'default' : 'pointer', opacity: esPausado ? 0.5 : (done ? 0.65 : 1) }}>
-                <div style={{ flexShrink: 0 }}>
-                  {done
-                    ? <CheckCircle size={22} style={{ color: '#10B981' }} />
-                    : esPausado
-                      ? <PauseCircle size={22} style={{ color: '#94A3B8' }} />
-                      : <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2px solid ' + (enProg ? '#FACC15' : 'var(--border-color)'), background: enProg ? 'rgba(250,204,21,0.1)' : 'transparent' }} />
-                  }
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: esPausado ? '#94A3B8' : (done ? 'var(--text-muted)' : '#FACC15'), textDecoration: done ? 'line-through' : 'none', letterSpacing: '1px' }}>
-                    {pedido.nombre_bordado || '(sin texto)'}
+        {/* === LISTA AGRUPADA POR TALLE === */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2rem' }}>
+          {(() => {
+            const TALLE_ORDEN = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2', '4', '6', '8', '10', '12', '14', '16'];
+            const porTalle = {};
+            pedidosDelGrupo.forEach(p => {
+              const t = p.talle || 'Sin talle';
+              if (!porTalle[t]) porTalle[t] = [];
+              porTalle[t].push(p);
+            });
+            return Object.entries(porTalle)
+              .sort((a, b) => {
+                const ia = TALLE_ORDEN.indexOf(a[0]);
+                const ib = TALLE_ORDEN.indexOf(b[0]);
+                if (ia === -1 && ib === -1) return a[0].localeCompare(b[0]);
+                if (ia === -1) return 1;
+                if (ib === -1) return -1;
+                return ia - ib;
+              })
+              .map(([talle, items]) => {
+              const activos = items.filter(p => !p.pausado);
+              const hechos = activos.filter(p => ESTADOS_TERMINADO.includes(p.estado)).length;
+              const abierto = !!tallesAbiertos[talle];
+              const todosHechos = activos.length > 0 && hechos === activos.length;
+              return (
+                <div key={talle} style={{ borderRadius: '14px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+                  {/* Header del grupo talle — clickeable para desplegar */}
+                  <div
+                    onClick={() => setTallesAbiertos(prev => ({ ...prev, [talle]: !prev[talle] }))}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--bg-dark)', cursor: 'pointer', userSelect: 'none' }}>
+                    <span style={{ color: 'var(--text-muted)', flexShrink: 0, transition: 'transform 0.2s' }}>
+                      {abierto ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    </span>
+                    <span style={{ background: '#FACC15', color: '#000', fontWeight: '900', fontSize: '1.1rem', padding: '4px 12px', borderRadius: '8px', letterSpacing: '0.5px' }}>{talle}</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{activos.length} prenda{activos.length !== 1 ? 's' : ''}</span>
+                    <span style={{ fontSize: '0.8rem', color: todosHechos ? '#10B981' : 'var(--text-muted)', fontWeight: '600', marginLeft: 'auto' }}>{hechos}/{activos.length} ✓</span>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{pedido.clientes?.nombre}</div>
+                  {/* Items del talle — colapsable */}
+                  {abierto && (
+                    <div style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--border-color)' }}>
+                      {items.map((pedido, idx) => {
+                        const done = ESTADOS_TERMINADO.includes(pedido.estado);
+                        const enProg = ESTADOS_EN_PROGRESO.includes(pedido.estado);
+                        const esPausado = !!pedido.pausado;
+                        const tieneObs = !!pedido.observaciones;
+                        const tieneObsBordado = !!pedido.observaciones_bordado;
+                        return (
+                          <div key={pedido.id}>
+                            <div
+                              onClick={() => !esPausado && setModalNombre(pedido)}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: esPausado ? 'rgba(148,163,184,0.04)' : (done ? 'rgba(16,185,129,0.05)' : 'var(--bg-sidebar)'), cursor: esPausado ? 'default' : 'pointer', opacity: esPausado ? 0.5 : (done ? 0.7 : 1) }}>
+                              <div style={{ flexShrink: 0 }}>
+                                {done
+                                  ? <CheckCircle size={20} style={{ color: '#10B981' }} />
+                                  : esPausado
+                                    ? <PauseCircle size={20} style={{ color: '#94A3B8' }} />
+                                    : <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid ' + (enProg ? '#FACC15' : 'var(--border-color)'), background: enProg ? 'rgba(250,204,21,0.1)' : 'transparent' }} />
+                                }
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '1.2rem', fontWeight: '800', color: esPausado ? '#94A3B8' : (done ? 'var(--text-muted)' : '#FACC15'), textDecoration: done ? 'line-through' : 'none', letterSpacing: '1px' }}>
+                                  {pedido.nombre_bordado || '(sin texto)'}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{pedido.clientes?.nombre}</div>
+                              </div>
+                              {!done && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); cambiarPausado(pedido.id, !esPausado); }}
+                                  title={esPausado ? 'Reincorporar al lote' : 'Excluir del lote'}
+                                  style={{ background: esPausado ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: esPausado ? '#10B981' : '#EF4444', fontSize: '0.72rem', fontWeight: '700', flexShrink: 0, lineHeight: 1 }}
+                                >
+                                  {esPausado ? 'Reincorporar' : 'Excluir'}
+                                </button>
+                              )}
+                              {!esPausado && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0 }}>›</div>}
+                            </div>
+                            {/* Observaciones inline — siempre visibles */}
+                            {(tieneObs || tieneObsBordado) && !esPausado && (
+                              <div style={{ padding: '0 1rem 0.6rem 3.5rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {tieneObs && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#F87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '6px', padding: '4px 8px' }}>
+                                    <AlertTriangle size={12} style={{ flexShrink: 0 }} /> {pedido.observaciones}
+                                  </div>
+                                )}
+                                {tieneObsBordado && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#A78BFA', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '6px', padding: '4px 8px' }}>
+                                    <Sparkles size={12} style={{ flexShrink: 0 }} /> {pedido.observaciones_bordado}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {idx < items.length - 1 && <div style={{ height: '1px', background: 'var(--border-color)', margin: '0 1rem' }} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                {pedido.observaciones && <AlertTriangle size={16} style={{ color: '#F87171', flexShrink: 0 }} />}
-                {!done && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); cambiarPausado(pedido.id, !esPausado); }}
-                    title={esPausado ? 'Reincorporar al lote' : 'Excluir del lote'}
-                    style={{ background: esPausado ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: esPausado ? '#10B981' : '#EF4444', fontSize: '0.72rem', fontWeight: '700', flexShrink: 0, lineHeight: 1 }}
-                  >
-                    {esPausado ? 'Reincorporar' : 'Excluir'}
-                  </button>
-                )}
-                {!esPausado && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0 }}>›</div>}
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

@@ -75,11 +75,13 @@ const RecepcionLote = () => {
     chomba_bordado: '',
     chomba_precio: '',
     chomba_observaciones: '',
+    chomba_obs_bordado: '',
     quiereCampera: false,
     campera_talle: '',
     campera_bordado: '',
     campera_precio: '',
     campera_observaciones: '',
+    campera_obs_bordado: '',
     monto_pagado: ''
   });
 
@@ -133,6 +135,8 @@ const RecepcionLote = () => {
     setAnio(anioFinal);
     setLoading(true);
 
+    let currentLoteId = null;
+
     const { data: loteData } = await supabase
       .from('lotes')
       .select('*')
@@ -142,6 +146,7 @@ const RecepcionLote = () => {
       .single();
 
     if (loteData) {
+      currentLoteId = loteData.id;
       setLoteId(loteData.id);
       setImagenChomba(loteData.imagen_chomba_url || '');
       setImagenCampera(loteData.imagen_campera_url || '');
@@ -155,14 +160,13 @@ const RecepcionLote = () => {
         .insert({ institucion_id: instId, grado: gr, anio: anioFinal, prioridad_chomba: 'ninguna', prioridad_campera: 'ninguna' })
         .select()
         .single();
-      if (nuevoLote) setLoteId(nuevoLote.id);
+      if (nuevoLote) { currentLoteId = nuevoLote.id; setLoteId(nuevoLote.id); }
     }
 
     const { data, error } = await supabase
       .from('pedidos')
       .select('*, clientes(nombre, dni)')
-      .eq('institucion_id', instId)
-      .eq('grado', gr)
+      .eq('lote_id', currentLoteId)
       .order('fecha_creacion', { ascending: true });
 
     if (!error && data) setPedidosLote(data);
@@ -189,8 +193,8 @@ const RecepcionLote = () => {
   const resetForm = () => {
     setForm({
       dni: '', nombre: '', telefono: '',
-      quiereChomba: true, chomba_talle: '', chomba_bordado: '', chomba_precio: precioLoteChomba, chomba_observaciones: '',
-      quiereCampera: false, campera_talle: '', campera_bordado: '', campera_precio: precioLoteCampera, campera_observaciones: '',
+      quiereChomba: true, chomba_talle: '', chomba_bordado: '', chomba_precio: precioLoteChomba, chomba_observaciones: '', chomba_obs_bordado: '',
+      quiereCampera: false, campera_talle: '', campera_bordado: '', campera_precio: precioLoteCampera, campera_observaciones: '', campera_obs_bordado: '',
       monto_pagado: ''
     });
     setClienteExistente(false);
@@ -239,10 +243,12 @@ const RecepcionLote = () => {
           cliente_dni: form.dni.trim(),
           institucion_id: institucionId,
           grado: grado,
+          lote_id: loteId,
           tipo_prenda: 'Chomba',
           talle: form.chomba_talle,
           nombre_bordado: form.chomba_bordado || null,
           observaciones: form.chomba_observaciones || null,
+          observaciones_bordado: form.chomba_obs_bordado || null,
           precio_total: precioChomba,
           monto_pagado: pagoChomba,
           estado: 'Pendiente'
@@ -254,10 +260,12 @@ const RecepcionLote = () => {
           cliente_dni: form.dni.trim(),
           institucion_id: institucionId,
           grado: grado,
+          lote_id: loteId,
           tipo_prenda: 'Campera',
           talle: form.campera_talle,
           nombre_bordado: form.campera_bordado || null,
           observaciones: form.campera_observaciones || null,
+          observaciones_bordado: form.campera_obs_bordado || null,
           precio_total: precioCampera,
           monto_pagado: pagoCampera,
           estado: 'Pendiente'
@@ -685,7 +693,11 @@ const RecepcionLote = () => {
             </div>
             <div style={{ gridColumn: isMobile ? 'span 2' : 'auto' }}>
               <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '3px' }}>Observaciones</label>
-              <input type="text" className="form-control" placeholder="Opcional" value={form.chomba_observaciones} onChange={(e) => setForm(prev => ({ ...prev, chomba_observaciones: e.target.value }))} />
+              <input type="text" className="form-control" placeholder="Confección (ruedos, puños...)" value={form.chomba_observaciones} onChange={(e) => setForm(prev => ({ ...prev, chomba_observaciones: e.target.value }))} />
+            </div>
+            <div style={{ gridColumn: isMobile ? 'span 2' : 'auto' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#A78BFA', marginBottom: '3px' }}>Obs. Bordado</label>
+              <input type="text" className="form-control" placeholder="Ej: No bordar promo 26" value={form.chomba_obs_bordado} onChange={(e) => setForm(prev => ({ ...prev, chomba_obs_bordado: e.target.value }))} />
             </div>
           </div>
         )}
@@ -722,7 +734,11 @@ const RecepcionLote = () => {
             </div>
             <div style={{ gridColumn: isMobile ? 'span 2' : 'auto' }}>
               <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '3px' }}>Observaciones</label>
-              <input type="text" className="form-control" placeholder="Opcional" value={form.campera_observaciones} onChange={(e) => setForm(prev => ({ ...prev, campera_observaciones: e.target.value }))} />
+              <input type="text" className="form-control" placeholder="Confección (ruedos, puños...)" value={form.campera_observaciones} onChange={(e) => setForm(prev => ({ ...prev, campera_observaciones: e.target.value }))} />
+            </div>
+            <div style={{ gridColumn: isMobile ? 'span 2' : 'auto' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#A78BFA', marginBottom: '3px' }}>Obs. Bordado</label>
+              <input type="text" className="form-control" placeholder="Ej: No bordar promo 26" value={form.campera_obs_bordado} onChange={(e) => setForm(prev => ({ ...prev, campera_obs_bordado: e.target.value }))} />
             </div>
           </div>
         )}
