@@ -175,6 +175,23 @@ ALTER TABLE lotes ADD COLUMN IF NOT EXISTS prioridad_campera TEXT DEFAULT 'ningu
 UPDATE lotes
 SET prioridad_chomba = prioridad, prioridad_campera = prioridad
 WHERE prioridad IS NOT NULL AND prioridad != 'ninguna';
+
+-- ==========================================
+-- CAMPO AÑO EN LOTES (diferenciar lotes del mismo grado en distintos años)
+-- ==========================================
+ALTER TABLE public.lotes ADD COLUMN IF NOT EXISTS anio INTEGER DEFAULT EXTRACT(YEAR FROM NOW());
+
+-- Asignar año actual a lotes existentes que no tengan año
+UPDATE public.lotes SET anio = EXTRACT(YEAR FROM NOW()) WHERE anio IS NULL;
+
+-- Actualizar constraint UNIQUE para incluir año
+ALTER TABLE public.lotes DROP CONSTRAINT IF EXISTS lotes_institucion_id_grado_key;
+ALTER TABLE public.lotes ADD CONSTRAINT lotes_institucion_id_grado_anio_key UNIQUE(institucion_id, grado, anio);
+
+-- ==========================================
+-- CAMPO PAUSADO EN PEDIDOS (excluir prendas del lote activo)
+-- ==========================================
+ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS pausado BOOLEAN DEFAULT false;
 -- ==========================================
 -- RESET DE DATOS OPERATIVOS
 -- (Ejecutar en Supabase Dashboard → SQL Editor)

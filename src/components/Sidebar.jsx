@@ -21,6 +21,7 @@ const Sidebar = ({ currentRole, isOpen, setIsOpen }) => {
     { path: '/libro-mayor', name: 'Libro Mayor', icon: <BookOpen className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
     // { path: '/pedidos', name: 'Recepción', icon: <ClipboardList className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] }, // desactivado temporalmente
     { path: '/recepcion-lote', name: 'Lotes', icon: <Layers className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
+    { path: '/recepcion-v2', name: 'Alta Lotes v2', icon: <Layers className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
     { path: '/escuelas', name: 'Escuelas', icon: <School className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },
     { path: '/empleados', name: 'Empleados', icon: <Users className="nav-icon" aria-hidden="true" />, roles: ['admin'] },
     { path: '/pagos', name: 'Pagos/Cuotas', icon: <CreditCard className="nav-icon" aria-hidden="true" />, roles: ['admin', 'operador'] },

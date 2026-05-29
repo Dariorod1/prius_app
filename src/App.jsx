@@ -15,6 +15,7 @@ const Dashboard = () => {
   const [filtroInstitucion, setFiltroInstitucion] = useState('');
   const [filtroInstitucionInput, setFiltroInstitucionInput] = useState('');
   const [showEscuelasDropdown, setShowEscuelasDropdown] = useState(false);
+  const [filtroAnio, setFiltroAnio] = useState(String(new Date().getFullYear()));
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroGrado, setFiltroGrado] = useState('');
@@ -49,12 +50,13 @@ const Dashboard = () => {
   // Cargar grados disponibles cuando cambia la institucion seleccionada
   useEffect(() => {
     if (!filtroInstitucion) { setGradosDisponibles([]); setFiltroGrado(''); return; }
-    supabase.from('lotes').select('grado').eq('institucion_id', filtroInstitucion)
-      .then(({ data }) => {
-        if (data) setGradosDisponibles(data.map(l => l.grado).sort());
-      });
+    let query = supabase.from('lotes').select('grado').eq('institucion_id', filtroInstitucion);
+    if (filtroAnio) query = query.eq('anio', Number(filtroAnio));
+    query.then(({ data }) => {
+      if (data) setGradosDisponibles([...new Set(data.map(l => l.grado))].sort());
+    });
     setFiltroGrado('');
-  }, [filtroInstitucion]);
+  }, [filtroInstitucion, filtroAnio]);
 
   // Cargar pedidos con filtros de servidor
   useEffect(() => {
@@ -66,6 +68,10 @@ const Dashboard = () => {
           .select('*, clientes(nombre, dni), instituciones(nombre)')
           .order('fecha_creacion', { ascending: false });
 
+        if (filtroAnio) {
+          query = query.gte('fecha_creacion', filtroAnio + '-01-01T00:00:00')
+                       .lt('fecha_creacion', (Number(filtroAnio) + 1) + '-01-01T00:00:00');
+        }
         if (filtroInstitucion) query = query.eq('institucion_id', filtroInstitucion);
         if (filtroEstado) query = query.eq('estado', filtroEstado);
         if (filtroGrado) query = query.ilike('grado', '%' + filtroGrado + '%');
@@ -81,7 +87,7 @@ const Dashboard = () => {
       }
     }
     fetchPedidos();
-  }, [filtroInstitucion, filtroEstado, filtroGrado, filtroPrenda]);
+  }, [filtroAnio, filtroInstitucion, filtroEstado, filtroGrado, filtroPrenda]);
 
   const pedidosFiltrados = pedidos.filter(pedido => {
     if (filtroTexto) {
@@ -174,6 +180,7 @@ const Dashboard = () => {
   };
 
   const limpiarFiltros = () => {
+    setFiltroAnio(String(new Date().getFullYear()));
     setFiltroInstitucion(''); setFiltroInstitucionInput('');
     setFiltroEstado(''); setFiltroTexto('');
     setFiltroGrado(''); setFiltroPrenda(''); setFiltroCobro('');
@@ -210,6 +217,16 @@ const Dashboard = () => {
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-sidebar)', borderRadius: '8px', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: '90px' }}>
+          <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Año</label>
+          <select className="form-control" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)}>
+            <option value="">Todos</option>
+            {[...Array(5)].map((_, i) => {
+              const y = new Date().getFullYear() - 2 + i;
+              return <option key={y} value={String(y)}>{y}</option>;
+            })}
+          </select>
+        </div>
         <div style={{ flex: '2', minWidth: '160px', position: 'relative' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Institución</label>
           <div style={{ position: 'relative' }}>
@@ -571,6 +588,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Recepcion from './pages/Recepcion';
 import RecepcionLote from './pages/RecepcionLote';
+import RecepcionLoteV2 from './pages/RecepcionLoteV2';
 import Escuelas from './pages/Escuelas';
 import Empleados from './pages/Empleados';
 import Pagos from './pages/Pagos';
@@ -643,6 +661,7 @@ function App() {
           <Route path="libro-mayor" element={<Dashboard />} />
           <Route path="pedidos" element={<Recepcion />} />
           <Route path="recepcion-lote" element={<RecepcionLote />} />
+          <Route path="recepcion-v2" element={<RecepcionLoteV2 />} />
           <Route path="escuelas" element={<Escuelas />} />
           <Route path="empleados" element={<Empleados />} />
           <Route path="pagos" element={<Pagos />} />

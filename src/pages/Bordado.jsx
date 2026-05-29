@@ -27,7 +27,6 @@ const Bordado = () => {
   const realtimeDebounceRef = useRef(null);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
-  const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -286,7 +285,7 @@ const Bordado = () => {
 
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.9rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>{finalizados.length} de {total} bordados{esAdmin && pausados.length > 0 ? ' (' + pausados.length + ' excluida' + (pausados.length !== 1 ? 's' : '') + ')' : ''}</span>
+            <span style={{ color: 'var(--text-muted)' }}>{finalizados.length} de {total} bordados{pausados.length > 0 ? ' (' + pausados.length + ' excluida' + (pausados.length !== 1 ? 's' : '') + ')' : ''}</span>
             <span style={{ color: '#FACC15', fontWeight: '700' }}>{pct}%</span>
           </div>
           <div style={{ height: '8px', background: 'var(--bg-dark)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -295,7 +294,7 @@ const Bordado = () => {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem' }}>
-          {(esAdmin ? pedidosDelGrupo : pedidosDelGrupo.filter(p => !p.pausado)).map(pedido => {
+          {pedidosDelGrupo.map(pedido => {
             const done = ESTADOS_TERMINADO.includes(pedido.estado);
             const enProg = ESTADOS_EN_PROGRESO.includes(pedido.estado);
             const esPausado = !!pedido.pausado;
@@ -319,7 +318,7 @@ const Bordado = () => {
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{pedido.clientes?.nombre}</div>
                 </div>
                 {pedido.observaciones && <AlertTriangle size={16} style={{ color: '#F87171', flexShrink: 0 }} />}
-                {esAdmin && !done && (
+                {!done && (
                   <button
                     onClick={(e) => { e.stopPropagation(); cambiarPausado(pedido.id, !esPausado); }}
                     title={esPausado ? 'Reincorporar al lote' : 'Excluir del lote'}
@@ -450,7 +449,7 @@ const Bordado = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
             <span style={{ background: color + '30', color: color, fontSize: '0.8rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>{cantidad} prendas</span>
             {finCount > 0 && <span style={{ fontSize: '0.8rem', color: '#10B981', fontWeight: '600' }}>{finCount}/{cantidad} ✓</span>}
-            {esAdmin && pausadosCount > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '0.72rem', color: '#94A3B8', fontWeight: '600' }}><PauseCircle size={11} /> {pausadosCount}</span>}
+            {pausadosCount > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '0.72rem', color: '#94A3B8', fontWeight: '600' }}><PauseCircle size={11} /> {pausadosCount}</span>}
             {priorityNum && (
               <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: prioridadColor === 'transparent' ? 'rgba(255,255,255,0.08)' : prioridadColor + '20', color: prioridadColor === 'transparent' ? 'var(--text-muted)' : prioridadColor, letterSpacing: '-0.5px' }}>
                 {'#' + priorityNum}

@@ -26,7 +26,6 @@ const Confeccion = () => {
   const realtimeDebounceRef = useRef(null);
   const draggedGrupoRef = useRef(null);
   const [dragOverCol, setDragOverCol] = useState(null);
-  const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -202,7 +201,7 @@ const Confeccion = () => {
           {grupo.grado && <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '2px' }}>{grupo.grado}</div>}
           <div style={{ marginTop: '0.9rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '5px' }}>
-              <span>{finalizados.length} de {total} prendas confeccionadas{esAdmin && pausados.length > 0 ? ' (' + pausados.length + ' excluida' + (pausados.length !== 1 ? 's' : '') + ')' : ''}</span>
+              <span>{finalizados.length} de {total} prendas confeccionadas{pausados.length > 0 ? ' (' + pausados.length + ' excluida' + (pausados.length !== 1 ? 's' : '') + ')' : ''}</span>
               <span style={{ fontWeight: '600', color: pct === 100 ? '#10B981' : 'var(--text-muted)' }}>{pct}%</span>
             </div>
             <div style={{ height: '7px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px' }}>
@@ -269,8 +268,7 @@ const Confeccion = () => {
             )}
           </div>
         </div>
-        {esAdmin && (
-          <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+        <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               Gestión de prendas
               {pausados.length > 0 && (
@@ -310,7 +308,6 @@ const Confeccion = () => {
               })}
             </div>
           </div>
-        )}
       </div>
     );
   }
@@ -397,7 +394,7 @@ const Confeccion = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.05rem' }}>{grupo.tipo_prenda}</span>
             <span style={{ background: color + '30', color: color, fontSize: '0.8rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>{cantidad}</span>
-            {esAdmin && pausadosCount > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '0.72rem', color: '#94A3B8', fontWeight: '600' }}><PauseCircle size={11} /> {pausadosCount}</span>}
+            {pausadosCount > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '0.72rem', color: '#94A3B8', fontWeight: '600' }}><PauseCircle size={11} /> {pausadosCount}</span>}
             {priorityNum && (
               <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '900', background: prioridadColor === 'transparent' ? 'rgba(255,255,255,0.08)' : prioridadColor + '20', color: prioridadColor === 'transparent' ? 'var(--text-muted)' : prioridadColor, letterSpacing: '-0.5px' }}>
                 {'#' + priorityNum}
@@ -422,7 +419,7 @@ const Confeccion = () => {
   };
 
   const columnas = [
-    { titulo: 'Cola',          subtitle: 'Corte listo, esperando confección', color: '#3B82F6', dropEstado: 'Corte Finalizado',      grupos: esAdmin ? colaLotes : colaLotes.filter(g => g.pedidos.some(p => !p.pausado)), forwardEstado: 'En Confección', backEstado: null },
+    { titulo: 'Cola',          subtitle: 'Corte listo, esperando confección', color: '#3B82F6', dropEstado: 'Corte Finalizado',      grupos: colaLotes, forwardEstado: 'En Confección', backEstado: null },
     { titulo: 'En Confección', subtitle: 'En proceso ahora',                  color: '#7C3AED', dropEstado: 'En Confección',        grupos: enProgresoLotes, forwardEstado: 'Confección Finalizada', backEstado: 'Corte Finalizado' },
     { titulo: 'Finalizada',    subtitle: 'Confección terminada',              color: '#10B981', dropEstado: 'Confección Finalizada', grupos: terminadosLotes, forwardEstado: null,                    backEstado: 'En Confección' },
   ];

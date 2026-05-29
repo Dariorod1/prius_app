@@ -21,6 +21,7 @@ const RecepcionLote = () => {
   const [instituciones, setInstituciones] = useState([]);
   const [institucionId, setInstitucionId] = useState('');
   const [grado, setGrado] = useState('');
+  const [anio, setAnio] = useState(new Date().getFullYear());
   const [loteActivo, setLoteActivo] = useState(false);
   const [pedidosLote, setPedidosLote] = useState([]);
   const [tabActiva, setTabActiva] = useState('Chomba');
@@ -124,10 +125,12 @@ const RecepcionLote = () => {
   }, [form.dni]);
 
   // Cargar lote existente de la DB
-  const cargarLoteConValores = useCallback(async (instId, gr) => {
+  const cargarLoteConValores = useCallback(async (instId, gr, anioVal) => {
     if (!instId || !gr) return;
+    const anioFinal = anioVal || anio;
     setInstitucionId(instId);
     setGrado(gr);
+    setAnio(anioFinal);
     setLoading(true);
 
     const { data: loteData } = await supabase
@@ -135,6 +138,7 @@ const RecepcionLote = () => {
       .select('*')
       .eq('institucion_id', instId)
       .eq('grado', gr)
+      .eq('anio', anioFinal)
       .single();
 
     if (loteData) {
@@ -148,7 +152,7 @@ const RecepcionLote = () => {
     } else {
       const { data: nuevoLote } = await supabase
         .from('lotes')
-        .insert({ institucion_id: instId, grado: gr, prioridad_chomba: 'ninguna', prioridad_campera: 'ninguna' })
+        .insert({ institucion_id: instId, grado: gr, anio: anioFinal, prioridad_chomba: 'ninguna', prioridad_campera: 'ninguna' })
         .select()
         .single();
       if (nuevoLote) setLoteId(nuevoLote.id);
@@ -166,16 +170,16 @@ const RecepcionLote = () => {
     setLoteActivo(true);
 
     const nombreInstitucion = instituciones.find(i => i.id === instId)?.nombre || '';
-    const entrada = { institucionId: instId, grado: gr, nombre: nombreInstitucion, ts: Date.now() };
+    const entrada = { institucionId: instId, grado: gr, anio: anioFinal, nombre: nombreInstitucion, ts: Date.now() };
     setRecientesLotes(prev => {
-      const filtrado = prev.filter(r => !(r.institucionId === instId && r.grado === gr));
+      const filtrado = prev.filter(r => !(r.institucionId === instId && r.grado === gr && r.anio === anioFinal));
       const nuevos = [entrada, ...filtrado].slice(0, 3);
       localStorage.setItem('prius_lotes_recientes', JSON.stringify(nuevos));
       return nuevos;
     });
-  }, [instituciones]);
+  }, [instituciones, anio]);
 
-  const cargarLote = useCallback(() => cargarLoteConValores(institucionId, grado), [cargarLoteConValores, institucionId, grado]);
+  const cargarLote = useCallback(() => cargarLoteConValores(institucionId, grado, anio), [cargarLoteConValores, institucionId, grado, anio]);
 
   const guardarPrecioLote = async (campo, valor) => {
     if (!loteId) return;
@@ -425,6 +429,20 @@ const RecepcionLote = () => {
               </select>
             </div>
 
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Año</label>
+              <select
+                className="form-control"
+                value={anio}
+                onChange={(e) => setAnio(Number(e.target.value))}
+              >
+                {[...Array(5)].map((_, i) => {
+                  const y = new Date().getFullYear() - 2 + i;
+                  return <option key={y} value={y}>{y}</option>;
+                })}
+              </select>
+            </div>
+
             <button
               className="btn btn-primary"
               disabled={!institucionId || !grado}
@@ -445,15 +463,15 @@ const RecepcionLote = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {recientesLotes.map((r) => (
                   <button
-                    key={r.institucionId + '_' + r.grado}
-                    onClick={() => cargarLoteConValores(r.institucionId, r.grado)}
+                    key={r.institucionId + '_' + r.grado + '_' + (r.anio || '')}
+                    onClick={() => cargarLoteConValores(r.institucionId, r.grado, r.anio || new Date().getFullYear())}
                     disabled={loading}
                     style={{ background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem 1.25rem', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s, background 0.15s' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'var(--bg-dark)'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'var(--bg-sidebar)'; }}
                   >
                     <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.95rem', marginBottom: '2px' }}>{r.nombre}</div>
-                    <div style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '600' }}>{r.grado}</div>
+                    <div style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '600' }}>{r.grado} · {r.anio || ''}</div>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
                       {new Date(r.ts).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </div>
@@ -851,7 +869,7 @@ const RecepcionLote = () => {
           <h1 style={{ color: 'var(--primary)', margin: 0, fontSize: isMobile ? '1.2rem' : '1.5rem' }}>
             {institucionNombre}
           </h1>
-          <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>{grado}</p>
+          <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>{grado} · {anio}</p>
         </div>
         <button
           className="btn"
