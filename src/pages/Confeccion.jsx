@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Shirt, CheckCircle, PlayCircle, RefreshCw, AlertTriangle, ArrowLeft, PauseCircle } from 'lucide-react';
 
@@ -125,13 +125,21 @@ const Confeccion = () => {
   const colaLotes = todosGrupos.filter(g => {
     const np = g.pedidos.filter(p => !p.pausado);
     if (np.length === 0) return true; // todos pausados → Cola para que el admin pueda reincorporar
-    return np.every(p => ESTADOS_COLA.includes(p.estado));
+    // Cola = ninguna prenda activa está REALMENTE "En Confección", y no todas terminadas
+    // Esto cubre el caso mixto (Corte Finalizado + Confección Finalizada sin nadie cosiendo)
+    const tieneAlgunaEnProgreso = np.some(p => ESTADOS_EN_PROGRESO.includes(p.estado));
+    const todasTerminadas = np.every(p => ESTADOS_TERMINADO.includes(p.estado));
+    return !tieneAlgunaEnProgreso && !todasTerminadas;
   });
 
   const enProgresoLotes = todosGrupos.filter(g => {
     const np = g.pedidos.filter(p => !p.pausado);
     if (np.length === 0) return false;
-    return !np.every(p => ESTADOS_COLA.includes(p.estado)) && !np.every(p => ESTADOS_TERMINADO.includes(p.estado));
+    // En Progreso = al menos 1 prenda activa está REALMENTE "En Confección"
+    // Esto evita el caso mixto (Corte Finalizado + Confección Finalizada sin nadie cosiendo)
+    const tieneAlgunaEnProgreso = np.some(p => ESTADOS_EN_PROGRESO.includes(p.estado));
+    const noTodasTerminadas = !np.every(p => ESTADOS_TERMINADO.includes(p.estado));
+    return tieneAlgunaEnProgreso && noTodasTerminadas;
   });
 
   const terminadosLotes = todosGrupos.filter(g => {
@@ -152,7 +160,11 @@ const Confeccion = () => {
   );
 
   if (loteAbierto) {
-    const { grupo } = loteAbierto;
+    const { loteKey } = loteAbierto;
+    const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';
+    // Re-derivar el grupo desde el state vivo para que Realtime lo actualice sin cerrar el detalle
+    const grupo = todosGrupos.find(g => getLoteKey(g) === loteKey) || loteAbierto.grupoFallback;
+    if (!grupo) { setLoteAbierto(null); return null; }
     const pedidosDelGrupo = grupo.grado
       ? pedidosTodos.filter(p => p.institucion_id === grupo.pedidos[0]?.institucion_id && p.grado === grupo.grado && p.tipo_prenda === grupo.tipo_prenda)
       : grupo.pedidos;
@@ -268,7 +280,8 @@ const Confeccion = () => {
             )}
           </div>
         </div>
-        <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+        {esAdmin && (
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               Gestión de prendas
               {pausados.length > 0 && (
@@ -308,6 +321,7 @@ const Confeccion = () => {
               })}
             </div>
           </div>
+        )}
       </div>
     );
   }
@@ -376,7 +390,7 @@ const Confeccion = () => {
         onTouchStart={isMobile ? handleTouchStart : undefined}
         onTouchMove={isMobile ? handleTouchMove : undefined}
         onTouchEnd={isMobile ? handleTouchEnd : undefined}
-        onClick={() => { if (!esIndividual && Math.abs(touchDeltaX.current) < 10) setLoteAbierto({ grupo }); }}
+        onClick={() => { if (!esIndividual && Math.abs(touchDeltaX.current) < 10) setLoteAbierto({ loteKey: getLoteKey(grupo), grupoFallback: grupo }); }}
         style={{ background: 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid var(--border-color)', cursor: isMobile ? 'default' : (esIndividual ? 'default' : 'grab'), overflow: 'hidden', touchAction: isMobile ? 'pan-y' : 'auto' }}>
         {prioridadColor !== 'transparent' && (
           <div style={{ height: '5px', background: prioridadColor, width: '100%' }} />

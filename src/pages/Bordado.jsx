@@ -255,7 +255,10 @@ const Bordado = () => {
 
   // =========== DETALLE DE LOTE ===========
   if (loteAbierto) {
-    const { grupo } = loteAbierto;
+    const { loteKey } = loteAbierto;
+    // Re-derivar el grupo desde el state vivo para que Realtime lo actualice sin cerrar el detalle
+    const grupo = todosGrupos.find(g => getLoteKey(g) === loteKey) || loteAbierto.grupoFallback;
+    if (!grupo) { setLoteAbierto(null); return null; }
     const pedidosDelGrupo = grupo.grado
       ? pedidosTodos.filter(p => p.institucion_id === grupo.pedidos[0]?.institucion_id && p.grado === grupo.grado && p.tipo_prenda === grupo.tipo_prenda)
       : grupo.pedidos;
@@ -502,7 +505,7 @@ const Bordado = () => {
         onTouchStart={isMobile ? handleTouchStart : undefined}
         onTouchMove={isMobile ? handleTouchMove : undefined}
         onTouchEnd={isMobile ? handleTouchEnd : undefined}
-        onClick={() => { if (!esIndividual && Math.abs(touchDeltaX.current) < 10) setLoteAbierto({ grupo }); }}
+        onClick={() => { if (!esIndividual && Math.abs(touchDeltaX.current) < 10) setLoteAbierto({ loteKey: getLoteKey(grupo), grupoFallback: grupo }); }}
         style={{ background: 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid var(--border-color)', cursor: isMobile ? 'default' : (esIndividual ? 'default' : 'grab'), overflow: 'hidden', touchAction: isMobile ? 'pan-y' : 'auto' }}>
         {prioridadColor !== 'transparent' && (
           <div style={{ height: '5px', background: prioridadColor, width: '100%' }} />

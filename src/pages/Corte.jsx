@@ -224,10 +224,10 @@ const Corte = () => {
     const loteInfo = grupo.lote;
     const imagen = grupo.tipo_prenda === 'Chomba' ? loteInfo?.imagen_chomba_url : loteInfo?.imagen_campera_url;
 
-    const porCortar   = pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado));
-    const enCorte     = pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado));
-    const finalizados = pedidosDelGrupo.filter(p => ESTADOS_TERMINADO.includes(p.estado));
-    const total       = pedidosDelGrupo.length;
+    const porCortar   = pedidosDelGrupo.filter(p => ESTADOS_COLA.includes(p.estado) && !p.pausado);
+    const enCorte     = pedidosDelGrupo.filter(p => ESTADOS_EN_PROGRESO.includes(p.estado) && !p.pausado);
+    const finalizados = pedidosDelGrupo.filter(p => ESTADOS_TERMINADO.includes(p.estado) && !p.pausado);
+    const total       = pedidosDelGrupo.filter(p => !p.pausado).length;
     const pct         = total > 0 ? Math.round((finalizados.length / total) * 100) : 0;
 
     // Resumen de talles (sin nombres)
@@ -431,11 +431,11 @@ const Corte = () => {
         if (delta > swipeThreshold && forwardEstado) {
           cardRef.current.style.transform = 'translateX(110%) rotate(4deg)';
           cardRef.current.style.opacity = '0';
-          setTimeout(() => cambiarEstadoLote(grupo.pedidos, forwardEstado), 300);
+          setTimeout(() => cambiarEstadoLote(grupo.pedidos.filter(p => !p.pausado), forwardEstado), 300);
         } else if (delta < -swipeThreshold && backEstado) {
           cardRef.current.style.transform = 'translateX(-110%) rotate(-4deg)';
           cardRef.current.style.opacity = '0';
-          setTimeout(() => cambiarEstadoLote(grupo.pedidos, backEstado), 300);
+          setTimeout(() => cambiarEstadoLote(grupo.pedidos.filter(p => !p.pausado), backEstado), 300);
         } else {
           cardRef.current.style.transform = '';
           cardRef.current.style.background = '';

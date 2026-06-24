@@ -217,7 +217,7 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
 - [x] **Supabase Storage:** Bucket `imagenes` (público, `UPDATE storage.buckets SET public = true`). Policies de INSERT/UPDATE/SELECT/DELETE habilitadas. Cache-buster (`?t=timestamp`) en URLs para evitar imágenes cacheadas.
 - [x] **Libro Mayor (`/libro-mayor`):** Vista consolidada cross-lote de todos los pedidos. Reemplaza la doble entrada de planillas (ya no hace falta registrar el pago en el lote Y en el libro mayor por separado — la DB es única fuente de verdad). Incluye: 4 KPI cards (Total pedidos, Facturado, Cobrado, Saldo pendiente), filtros por Institución + Grado + Prenda + Estado + Estado de cobro (con deuda / pagado completo) + búsqueda por nombre/DNI, columna Institución/Grado en tabla, barra de progreso de pago con saldo pendiente en amarillo, botón **+ Pago** por fila (abre modal para registrar pago con monto + método sin salir de la vista), timeline expandible de estados por pedido.
 - [x] **Talonario y comprobante en pagos:** Cada pago registrado (tanto en Pagos/Cuotas como en el modal rápido del Libro Mayor) permite ingresar el **N° de talonario** físico. Si el método es Transferencia, se habilita un botón para **adjuntar el comprobante** (imagen o PDF), que se sube a Supabase Storage en `comprobantes/{pedidoId}_{timestamp}.ext`. El talonario y el link "Ver comprobante" aparecen en cada fila del historial de movimientos (tanto en el modal de Pagos como en el historial colapsable de las cards de búsqueda).
-- [x] **Confección por Lotes (`Confeccion.jsx`):** Cards agrupadas por lote (igual que Corte). Estados: `Corte Finalizado` → `En Confección` → `Confección Finalizada`. Swipe táctil (derecha = avanzar, izquierda = retroceder) + Drag & Drop HTML5 entre columnas kanban. Columnas: Cola (Corte Finalizado), En Confección, Finalizada. Vista de detalle al tocar/hacer click en la card (imagen, talles, lista de pedidos, acciones masivas e individuales).
+- [x] **Confección por Lotes (`Confeccion.jsx`):** Cards agrupadas por lote (igual que Corte). Estados: `Corte Finalizado` → `En Confección` → `Confección Finalizada`. Swipe táctil (derecha = avanzar, izquierda = retroceder) + Drag & Drop HTML5 entre columnas kanban. Columnas: Cola (Corte Finalizado), En Confección, Finalizada. Vista de detalle al tocar/hacer click en la card (imagen, talles, lista de pedidos, acciones masivas e individuales). **Solo admin** puede ver y usar la sección "Gestión de prendas" en el detalle.
 - [x] **Bordado por Lotes (`Bordado.jsx`) — Modelo híbrido lote+individual:** Reescritura completa. Los pedidos se agrupan por `institucion_id + grado + tipo_prenda`. Columnas kanban: Cola (lotes donde ningún pedido está en bordado), En Bordado (al menos 1 pedido en bordado), Finalizado (todos los pedidos bordados). Swipe táctil + Drag & Drop entre columnas. **Vista detalle del lote:** header escuela+grado, barra de progreso amarilla, lista scrollable de `nombre_bordado` (cada fila: ícono círculo/check, nombre bordado en amarillo grande, nombre cliente, ícono alerta si hay obs). **Modal nombre bordado:** overlay con el texto a bordar en 3rem + botón "Marcar como Bordado" / "Reabrir". Acciones del lote: "Iniciar Bordado del Lote", "Finalizar Lote · N pendientes", "Devolver lote a cola".
 - [x] **Prioridad por tipo de prenda — `prioridad_chomba` / `prioridad_campera` (Corte, Confección, Bordado):** Cada lote tiene prioridades independientes por tipo de prenda. En RecepcionLote hay un selector de prioridad separado en la pestaña Chomba y en la pestaña Campera. En las secciones kanban de Corte, Confección y Bordado cada card usa la prioridad del campo correspondiente a su `tipo_prenda`. La barra de color en la parte superior de la card refleja esa prioridad específica. Constantes usadas en todos los módulos: `PRIORIDAD_ORDEN = { urgente:0, alta:1, media:2, baja:3, ninguna:4 }` y `PRIORIDAD_COLORS = { urgente:'#EF4444', alta:'#10B981', media:'#FACC15', baja:'#94A3B8', ninguna:'transparent' }`.
 - [x] **Excluir/Reincorporar prendas del lote (Confección y Bordado) — Solo admin:** El admin puede excluir prendas individuales de un lote activo (campo `pausado = true` en `pedidos`). Comportamiento:
@@ -239,6 +239,13 @@ Un pedido nace en estado **Pendiente**. La autorización para corte se realiza *
 - [ ] **Reportes:** Dashboard estadístico de tiempos de producción y flujo de caja.
 - [ ] **Limpiar console.logs de debug:** Hay logs temporales en `Pagos.jsx` (`[STATUS BAR]`, `[REALTIME]`, `[BUSCAR]`) que deben removerse antes del deploy final.
 - [ ] **Reactivar Recepción clásica (`/pedidos`):** El componente `Recepcion.jsx` y su ruta existen pero la entrada del Sidebar está comentada. Descomentar en `Sidebar.jsx` para reactivarla.
+
+### 🐛 Bugs corregidos (2025-06-24)
+- [x] **Confección — Gestión de prendas visible a todos los roles:** La sección "Gestión de prendas" (Excluir/Reincorporar) no tenía guard de rol. Corregido: `esAdmin` calculado inline al inicio del bloque `loteAbierto` y toda la sección envuelta en `{esAdmin && (...)}`. El contrato ahora cumple la doc: solo admin puede excluir en Confección.
+- [x] **Corte — Swipe movía prendas pausadas:** Los handlers `handleTouchEnd` de `CardLote` en `Corte.jsx` llamaban `cambiarEstadoLote(grupo.pedidos, ...)` sin filtrar pausadas. Corregido a `grupo.pedidos.filter(p => !p.pausado)`, consistente con Confección y Bordado.
+- [x] **Corte — Detalle de lote no filtraba pausadas:** `porCortar`, `enCorte`, `finalizados` y `total` en la vista detalle no excluían prendas con `pausado = true`. Corregido.
+- [x] **Confección — Clasificación ambigua de columna:** Un lote con estados mixtos (`Corte Finalizado` + `Confección Finalizada`) sin nadie activamente `En Confección` caía en la columna "En Confección". Corregido: la columna Cola ahora captura cualquier lote sin nadie activamente cosiendo (no todas terminadas), y En Progreso requiere al menos 1 prenda activa `En Confección`.
+- [x] **Confección y Bordado — `loteAbierto` stale snapshot:** La vista de detalle usaba `grupo` del momento del click. Si Realtime actualizaba `pedidosTodos`, los conteos no se refrescaban sin cerrar y reabrir el detalle. Corregido: `setLoteAbierto` ahora guarda `{ loteKey, grupoFallback }` y la vista de detalle re-deriva `grupo` desde `todosGrupos` en cada render.
 
 ---
 
@@ -317,13 +324,27 @@ Para que las actualizaciones instantáneas funcionen en todas las pantallas (Cor
 - `getLoteKey(g)`: `g.grado ? (g.pedidos[0]?.institucion_id + '|' + g.grado + '|' + g.tipo_prenda) : ('ind|' + g.pedidos[0]?.id)` — clave única por grupo incluyendo el tipo de prenda.
 
 ### Excluir/Reincorporar prendas (pausado)
-- `esAdmin` se computa inline: `const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';` — fuera del JSX, dentro del componente funcional.
+- `esAdmin` se computa inline **dentro del bloque `if (loteAbierto)`**: `const esAdmin = (JSON.parse(localStorage.getItem('priusUser')) || {}).rol === 'admin';`
 - `cambiarPausado(id, valor)` hace `UPDATE pedidos SET pausado = valor WHERE id = id` y usa el patrón `skipRealtimeCountRef` para evitar el re-fetch del propio cambio.
-- **Lógica de columnas con prendas excluidas:**
-  - Confección: `const nonPausedTodos = pedidosTodos.filter(p => !p.pausado)` — las 3 columnas usan este array filtrado.
-  - Bordado: por grupo, `const np = g.pedidos.filter(p => !p.pausado)`. Si `np.length === 0` (todos excluidos), el grupo va a Cola.
+- **Confección — guard de rol:** La sección "Gestión de prendas" está SIEMPRE envuelta en `{esAdmin && (...)}`. Los empleados no la ven. Solo admin puede excluir en Confección.
+- **Bordado — cualquier rol puede excluir/reincorporar:** Los botones Excluir/Reincorporar en la lista de ítems no tienen guard de rol (intencional según regla de negocio). Solo se ocultan si la prenda ya está `done`.
+- **Lógica de columnas con prendas excluidas (Confección):**
+  - Cola: `!tieneAlgunaEnProgreso && !todasTerminadas` — captura estados mixtos y el caso "todos pausados".
+  - En Progreso: `tieneAlgunaEnProgreso && noTodasTerminadas` — requiere al menos 1 prenda activa `En Confección`.
+  - Finalizado: `np.every(p => ESTADOS_TERMINADO.includes(p.estado))` con `np.length > 0`.
+- **Lógica de columnas con prendas excluidas (Bordado):** por grupo, `const np = g.pedidos.filter(p => !p.pausado)`. Si `np.length === 0` (todos excluidos), el grupo va a Cola.
+- **`loteAbierto` — patrón live sync:** `setLoteAbierto({ loteKey: getLoteKey(grupo), grupoFallback: grupo })`. La vista de detalle hace `todosGrupos.find(g => getLoteKey(g) === loteKey) || grupoFallback` para re-derivar el grupo desde el state vivo en cada render. Si el grupo ya no existe (fue movido fuera del rango de estados del módulo), cierra el detalle automáticamente.
 - **Vista de detalle:** `total`, `finalizados`, `enConfeccion`/`enBordado`, `porConfeccionar`/`enCola` usan siempre solo los no pausados. `pausados` es el array complementario, solo para mostrarlos al admin.
-- **Admin UI en Confección:** sección "Gestión de prendas" envuelta en `{esAdmin && (...)}`. Muestra todos los pedidos del grupo (incluidos excluidos). Botón **Excluir** (rojo) para activos no finalizados; botón **Reincorporar** (verde) para excluidos; label "EXCLUIDA" en los excluidos.
-- **Admin UI en Bordado:** la lista de ítems usa `(esAdmin ? pedidosDelGrupo : pedidosDelGrupo.filter(p => !p.pausado)).map(...)`. Los botones Excluir/Reincorporar están dentro de `{esAdmin && !done && (...)}`.
+- **Swipe en Corte:** Filtra `grupo.pedidos.filter(p => !p.pausado)` antes de llamar `cambiarEstadoLote`, igual que Confección y Bordado.
 - **Badge en card:** `{esAdmin && pausadosCount > 0 && <span>⏸ N</span>}` — visible solo para el admin.
 - **Regla visual:** los empleados nunca ven la cantidad real de prendas del lote si hay excluidas; solo ven la cantidad activa.
+
+### Tests unitarios
+- **Archivo:** `src/__tests__/columnClassification.test.js`
+- **Framework:** Vitest (`npm test` para correr, `npm run test:watch` para modo watch).
+- **Qué cubren:** 22 tests de lógica pura (sin React ni Supabase) que prueban:
+  - Clasificación correcta de grupos a columnas en Confección y Bordado.
+  - Escenarios "usuario tonto": el lote siempre está en exactamente 1 columna en todo momento.
+  - Todos los edge cases de exclusión: excluir, reincorporar, excluir N veces (idempotencia), todos excluidos → Cola.
+  - Invariante crítico: un lote con todos los pedidos excluidos nunca desaparece del kanban.
+- **Cómo correr:** `npm test` desde la raíz del proyecto.
